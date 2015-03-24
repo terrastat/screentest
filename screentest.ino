@@ -1,20 +1,25 @@
+
+//LIBRARIES
 #include "SPI.h"
 #include "Adafruit_GFX.h"
 #include "Adafruit_ILI9341.h"
+#include <Adafruit_FT6206.h>
 #include "Time.h"
-#include <DS3234RTC.h>
+#include <Wire.h>      // this is needed for FT6206
+#include <DS1307.h>
 #include <EEPROM.h>
 #include <EEPROMAnything.h>
-#include <Wire.h>      // this is needed for FT6206
-#include <Adafruit_FT6206.h>
+#include "OneWire.h"
+#include "DallasTemperature.h"
 
-// screen size  w = 320 h = 240
-// For the Adafruit shield, these are the default.
 
-#define VER 1.02
+
+
+
+#define VER 1.00
 #define TFT_DC 9
 #define TFT_CS 10
-#define rotation 3
+#define ROTATION 3
 #define MAINSCREEN 0
 #define MENUSCREEN_ONE 1
 #define CLOCKSETUP 2
@@ -23,25 +28,40 @@
 #define AUTOMATIC_FEEDER 13
 #define FEEDER_TIMER 14
 #define MAINTENANCE 15
+#define WATER_FILTER_OFF  5     
+#define NUM_LIGHTS 2
+#define LIGHTS  6 
 
+
+
+//Declare which fonts to be utilized
 #define XLARGE 4
 #define LARGE 3
 #define MEDIUM 2
 #define SMALL 1
-// #define BUTTONCOLOR_BLUE 0
-// #define BUTTONCOLOR_RED 1
-// #define BUTTONCOLOR_GREEN 2
+#define CENTER 9998
 
 #define ILI9341_GRAY  0x4208
-#define WATER_FILTER_OFF  6     
 
+//TOUCH PANEL & Adafruit ILI9341 
+// The FT6206 uses hardware I2C (SCL/SDA)
+Adafruit_FT6206 ctp = Adafruit_FT6206();
+// Use hardware SPI (on Uno, #13, #12, #11) and the above for CS/DC
 
+Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
+// If using the breakout, change pins as desired
+//Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK, TFT_RST, TFT_MISO);
 
+// screen size  w = 320 h = 240
+// For the Adafruit shield, these are the default.
+ //touch coordinates
 int x, y;   
-int x1, y1;                         //touch coordinates
+int x1, y1;                       
 
 unsigned long previousMillisFive = 0;         //Used in the Main Loop (Checks Time,Temp,LEDs,Screen)
 unsigned long previousMillisAlarm = 0;        //Used in the Alarm
+
+const int tempHeatPin = 53;          //Heater on/off (set thermostat on heater to highest desired level)
 
 int setScreensaver = 1;              //ON=1 || OFF=2 (change in prog)
 int screenSaverTimer = 0;            //counter for Screen Saver
@@ -54,6 +74,9 @@ int dispScreen = 0;     //0-Main Screen, 1-Menu, 2-Clock Setup, 3-Temp Control,
 								//12-General Settings, 13-Automatic Feeder,
 								// 14-Set Feeder Timers, 15-About
 
+//rtc data
+tmElements_t tm;
+
 
 int FEEDTime1, FEEDTime2, FEEDTime3, FEEDTime4;
 int feedTime;
@@ -61,9 +84,14 @@ int feedFish1H, feedFish1M,          //Times to feed the fish
     feedFish2H, feedFish2M, feedFish3H, feedFish3M, feedFish4H, feedFish4M;
 int FEEDTime;
 
-int lightTime1H, lightTime1M, 
-    lightTime2H, lightTime2M;
+int lightTime1H, lightTime1M, lightTime1S, 
+    lightTime2H, lightTime2M, lightTime2S;
 int lightTime;
+boolean Lights_On_Flag = false;
+
+boolean checkTemp = true;
+float tempW = 0;                     //Water temperature values
+// DeviceAddress waterThermometer = { 0x28, 0x5C, 0x56, 0x59, 0x03, 0x00, 0x00, 0xEB };
 
 int setCalendarFormat = 1;           //DD/MM/YYYY=0 || Month DD, YYYY=1 (change in prog)
 char otherData [19]; // other printed data
@@ -72,29 +100,33 @@ char otherData [19]; // other printed data
 							//byte data [56];
 
 char time [11], date [16]; //day [16];
-
-
+char  time1 [11];
 int timeDispH, timeDispM, xTimeH, xTimeM10, xTimeM1, xTimeAMPM, xColon;
-int rtc [7], rtcSet [7];               //Clock arrays
-int rtcSet2, AM_PM, yTime;           //Setting clock stuff
+int timeDispH1, timeDispM1, xTimeH1;
+int rtc [7], rtcSet [7], rtcSet2 [7];               //Clock arrays
+int AM_PM, yTime, yTime1;           //Setting clock stuff
 int setTimeFormat = 1;               //24HR=0 || 12HR=1 (change in prog)
 int setTempScale = 0;                //Celsius=0 || Fahrenheit=1 (change in prog)
 int setAutoStop = 2;                 //ON=1 || OFF=2 (change in prog)
 
+int light_num = 0;
+int light_on_time[3] = {0,0,0};
+int lighttimes[NUM_LIGHTS][3] = {{ lightTime1H, lightTime1M, lightTime1S}, 
+                                 { lightTime2H, lightTime2M, lightTime2S}};
 boolean waterfilterStopped = false; 
-int fiveTillBackOn1, fiveTillBackOn2;
-
-// The FT6206 uses hardware I2C (SCL/SDA)
-Adafruit_FT6206 ctp = Adafruit_FT6206();
-// Use hardware SPI (on Uno, #13, #12, #11) and the above for CS/DC
-
-Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
-// If using the breakout, change pins as desired
-//Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK, TFT_RST, TFT_MISO);
-
+boolean feederMotorRunning = false;
+boolean alarm1 = false;				
+boolean alarm2 = false;
+boolean alarm3 = false;
+boolean alarm4 = false;
 boolean tempAlarmflag = 0;
 boolean CLOCK_SCREENSAVER = true;   //For a Clock Screensaver "true" / Blank Screen "false"
 												//You can turn the Screensaver ON/OFF in the pogram
+
+int fiveTillBackOn1, fiveTillBackOn2;
+int tenSecTimer;
+
+int sensorPin = 8;
 
 float temp2beS;                      //Temporary Temperature Values
 float temp2beO;                      //Temporary Temperature Values
@@ -114,8 +146,8 @@ const int tanD [] = { 10, 30, 120, 35 };    //"TIME and DATE" settings
 const int temC [] = { 10, 70, 120, 35 };    //"H2O TEMP CONTROL" settings
 const int gSet [] = { 10, 110, 120, 35 };   //"GENERAL SETTINGS" page
 const int aFeed [] = { 165, 30, 120, 35 };  //"AUTOMATIC FEEDER" menu
-const int about [] = { 165, 70, 120, 35 };  //"ABOUT" program information
-const int liteS [] = { 165, 110, 120, 35 }; //'LIGHT CONTROL" page
+const int maint [] = { 165, 110, 120, 35 };  //"ABOUT" program information
+const int liteS [] = { 165, 70, 120, 35 }; //'LIGHT CONTROL" page
 /**************************** TIME AND DATE SCREEN BUTTONS ***************************/
 const int houU [] = { 110, 22, 25, 25 };       //hour up
 const int minU [] = { 180, 22, 25, 25 };       //min up
@@ -149,7 +181,19 @@ const int min2U [] = { 180, 112, 25, 25 };       //Light Off min up
 const int hou2D [] = { 110, 162, 25, 25 };      //Light Off hour down
 const int min2D [] = { 180, 162, 25, 25 };      //Light Off min down
 // const int ampm2D [] = { 265, 162, 25, 25 };     //Light Off AM/PM down
-
+/*************************** Maintenacne Menu Buttons *************************************/
+const int day1D [] = {120, 39, 25, 25 }; 		
+const int day2D [] = {120, 79, 25, 25 };
+const int day3D [] = {120, 119, 25, 25 };
+const int day4D [] = {120, 159, 25, 25 };
+const int day1U [] = {205, 39, 25, 25 };
+const int day2U [] = {205, 79, 25, 25 };
+const int day3U [] = {205, 119, 25, 25 };
+const int day4U [] = {205, 159, 25, 25 };
+const int day1R [] = {250, 39, 40, 25 };
+const int day2R [] = {250, 79, 40, 25 };
+const int day3R [] = {250, 119, 40, 25 };
+const int day4R [] = {250, 159, 40, 25 };
 /*********************************** MISCELLANEOUS BUTTONS *********************************/
 const int back [] = { 5, 200, 100, 25 };       //BACK
 const int prSAVE [] = { 110, 200, 100, 25 };   //SAVE or NEXT
@@ -303,58 +347,44 @@ EEPROM_readAnything ( 640, tempSettings );
 
 /********************************** RTC FUNCTIONS *************************************/
 void SaveRTC () {
-	// int year = rtcSet [6] - 2000;
+	int year = rtcSet [6] - 2000;
 
-	// RTC.stop ();            //RTC clock setup
-	// RTC.set ( DS1307_SEC, 1 );
-	// RTC.set ( DS1307_MIN, rtcSet [1] );
-	// RTC.set ( DS1307_HR, rtcSet [2] );
-	// //RTC.set(DS1307_DOW,1);
-	// RTC.set ( DS1307_DATE, rtcSet [4] );
-	// RTC.set ( DS1307_MTH, rtcSet [5] );
-	// RTC.set ( DS1307_YR, year );
-	// delay ( 10 );
-	// RTC.start ();
-	// delay ( 10 );
-	// for ( int i = 0; i < 56; i++ ) {
-	// 	RTC.set_sram_byte ( 65, i );
-	// }
-	// delay ( 50 );
+	RTC.stop ();            //RTC clock setup
+	RTC.set ( DS1307_SEC, 1 );
+	RTC.set ( DS1307_MIN, rtcSet [1] );
+	RTC.set ( DS1307_HR, rtcSet [2] );
+	RTC.set ( DS1307_DATE, rtcSet [4] );
+	RTC.set ( DS1307_MTH, rtcSet [5] );
+	RTC.set ( DS1307_YR, year );
+	delay ( 10 );
+	RTC.start ();
+	delay ( 10 );
 }
 
 /********************************* END OF RTC FUNCTIONS *******************************/
 
 /********************************** TIME AND DATE BAR **********************************/
 void TimeDateBar ( boolean refreshAll = false ) {
-	char oldVal [16], minute [3], stunde [3], ampm [6], month [5];
-//////////////////////////
-// temp values for testing
-rtc [1] = 5;
-rtc [2] = 14;
-//rtc [3] = 
-rtc [4] = 17;
-rtc [5] =12; 
-rtc [6] = 2014;
-//rtc [7] =
-//////////////////////////
+	char oldVal [16], minute1 [3], hour1 [3], ampm [6], month1 [5];
+
 	tft.setTextSize ( SMALL );
 	if ( ( rtc [1] >= 0 ) && ( rtc [1] <= 9 ) ) {
-		sprintf ( minute, "%i%i", 0, rtc [1] );
+		sprintf ( minute1, "%i%i", 0, rtc [1] );
 	}               //adds 0 to minutes
 	else {
-		sprintf ( minute, "%i", rtc [1] );
+		sprintf ( minute1, "%i", rtc [1] );
 	}
 
 	if ( setTimeFormat == 1 ) {
 		if ( rtc [2] == 0 ) {
-			sprintf ( stunde, "%i", 12 );
+			sprintf ( hour1, "%i", 12 );
 		}                //12 HR Format
 		else {
 			if ( rtc [2] > 12 ) {
-				sprintf ( stunde, "%i", rtc [2] - 12 );
+				sprintf ( hour1, "%i", rtc [2] - 12 );
 			}
 			else {
-				sprintf ( stunde, "%i", rtc [2] );
+				sprintf ( hour1, "%i", rtc [2] );
 			}
 		}
 	}
@@ -370,52 +400,53 @@ rtc [6] = 2014;
 
 	sprintf ( oldVal, "%i", time );                                 //refresh time if different
 	if ( setTimeFormat == 1 ) {
-		sprintf ( time, "%s:%s%s", stunde, minute, ampm );
+		sprintf ( time, "%s:%s%s", hour1, minute1, ampm );
 	}
 	else {
-		sprintf ( time, " %i:%s      ", rtc [2], minute );
+		sprintf ( time, " %i:%s      ", rtc [2], minute1 );
 	}
 	if ( ( oldVal != time ) || refreshAll ) {
+		tft.fillRoundRect ( 215, 227, 60, 10, 10/8, ILI9341_BLACK);
 		tft.setTextColor ( ILI9341_YELLOW );
 		tft.setCursor ( 215, 227 );
 		tft.print ( time );            //Display time
 	}
 
 	if ( rtc [5] == 1 ) {
-		sprintf ( month, "JAN " );
-	}             //Convert the month to its name
+		sprintf ( month1, "JAN " );  //Convert the month to its name
+	}            
 	if ( rtc [5] == 2 ) {
-		sprintf ( month, "FEB " );
+		sprintf ( month1, "FEB " );
 	}
 	if ( rtc [5] == 3 ) {
-		sprintf ( month, "MAR " );
+		sprintf ( month1, "MAR " );
 	}
 	if ( rtc [5] == 4 ) {
-		sprintf ( month, "APR " );
+		sprintf ( month1, "APR " );
 	}
 	if ( rtc [5] == 5 ) {
-		sprintf ( month, "MAY " );
+		sprintf ( month1, "MAY " );
 	}
 	if ( rtc [5] == 6 ) {
-		sprintf ( month, "JUN " );
+		sprintf ( month1, "JUN " );
 	}
 	if ( rtc [5] == 7 ) {
-		sprintf ( month, "JLY " );
+		sprintf ( month1, "JLY " );
 	}
 	if ( rtc [5] == 8 ) {
-		sprintf ( month, "AUG " );
+		sprintf ( month1, "AUG " );
 	}
 	if ( rtc [5] == 9 ) {
-		sprintf ( month, "SEP " );
+		sprintf ( month1, "SEP " );
 	}
 	if ( rtc [5] == 10 ) {
-		sprintf ( month, "OCT " );
+		sprintf ( month1, "OCT " );
 	}
 	if ( rtc [5] == 11 ) {
-		sprintf ( month, "NOV " );
+		sprintf ( month1, "NOV " );
 	}
 	if ( rtc [5] == 12 ) {
-		sprintf ( month, "DEC " );
+		sprintf ( month1, "DEC " );
 	}
 
 	sprintf ( oldVal, "%s", date );                                 //refresh date if different
@@ -426,22 +457,253 @@ rtc [6] = 2014;
 
 	}
 	else {
-		sprintf ( date, "  %s%i, %i", month, rtc [4], rtc [6] );
+		sprintf ( date, "  %s%i, %i", month1, rtc [4], rtc [6] );
 //    date= "  " + month + String(rtc[4]) + ',' + ' ' + String(rtc[6]);
 	}
 	if ( ( oldVal != date ) || refreshAll ) {
 //    char bufferD[15];
 //    date.toCharArray(bufferD, 15);              //String to Char array
+		tft.fillRoundRect ( 20, 227, 80, 10, 10/8, ILI9341_BLACK);
 		tft.setTextColor ( ILI9341_YELLOW );
 		tft.setCursor ( 20, 227 );
 		tft.print ( date );             //Display date
 	}
 }
+
 /****************************** END OF TIME AND DATE BAR ******************************/
+
+/******************************** TEMPERATURE FUNCTIONS *******************************/
+void checkTempC () {
+	if ( checkTemp ) {
+		int reading = analogRead(sensorPin); 
+		float voltage = reading * 5.0;
+ 		tempW = (voltage /= 10) ;	
+
+		if ( tempW < ( setTempC + offTempC + alarmTempC ) && tempW > ( setTempC - offTempC - alarmTempC ) ) {
+			tempAlarmflag = false;
+			// digitalWrite ( tempAlarmPin, LOW );                           //turn off alarm
+		}
+		if ( tempW < ( setTempC + offTempC ) && tempW > ( setTempC - offTempC ) ) { //turn off chiller/heater
+			tempHeatflag = false;
+			digitalWrite ( tempHeatPin, LOW );
+		}
+		if ( offTempC > 0 ) {
+			if ( tempW <= ( setTempC - offTempC ) ) {            //turn an heater
+				tempHeatflag = true;
+				digitalWrite ( tempHeatPin, HIGH );
+			}
+		}
+		if ( alarmTempC > 0 ) {                             //turn on alarm
+			if ( ( tempW >= ( setTempC + offTempC + alarmTempC ) ) || ( tempW <= ( setTempC - offTempC - alarmTempC ) ) ) {
+				tempAlarmflag = true;
+				unsigned long cMillis = millis ();
+			}
+		}
+	}
+
+}
+
+/*************************** END OF TEMPERATURE FUNCTIONS *****************************/
+
+/*********************** MAIN SCREEN ********** dispScreen = 0 ************************/
+void mainScreen( boolean refreshAll = false ) {
+
+	if ( dispScreen != 0){
+		tft.fillScreen(ILI9341_BLACK);
+		tft.drawRect( 0, 0, 320, 240, ILI9341_BLUE);            //Outside Border
+		dispScreen = 0;
+	}
+	tft.setTextColor(ILI9341_WHITE);  tft.setTextSize( SMALL );
+	tft.drawRect ( 0, 125, 319, 12, ILI9341_BLUE);        //Horizontal Divider
+	tft.drawRect (158,137, 2, (240-137), ILI9341_BLUE );
+	tft.fillRect ( 0, 0, 319, 14, ILI9341_BLUE );             //Top Bar
+	tft.setCursor(60, 4); 
+	setFont ( SMALL, ILI9341_YELLOW );
+// Build main screen status notices here
+
+	tft.print(F("Bill's Aquarium Controller v"));
+	tft.print(VER);
+	setFont ( SMALL, ILI9341_YELLOW );
+	printTxt ( "Next Event", 30, 60 );
+	updateScreen ();
+	setFont ( SMALL, ILI9341_RED );
+	printTxt ( "MONITORS & ALERTS", 110, 128 );
+		
+	if ( ( alarm1 == 1 ) && ( alarm2 == 0 ) && (alarm3 == 0 ) & ( alarm4 == 0 ) ) {
+		// alarm 1
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "Water Filter", 40, 150 );
+	}
+	if ( ( alarm1 == 1 ) && ( alarm2 == 1 ) && (alarm3 == 0 ) & ( alarm4 == 0 ) ) {
+		// alarm 1 & 2
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "Water Filter", 40, 150 );
+		printTxt ( "Charcoal Filter", 40, 170 );
+	}
+	if ( ( alarm1 == 1 ) && ( alarm2 == 1 ) && (alarm3 == 1 ) & ( alarm4 == 0 ) ) {
+		// alarm 1, 2, & 3
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "Water Filter", 40, 150 );
+		printTxt ( "Charcoal Filter", 40, 170 );
+		printTxt ( "NH3 Filter", 40, 190 );
+	}
+	if ( ( alarm1 == 1 ) && ( alarm2 == 1 ) && (alarm3 == 1 ) & ( alarm4 == 1 ) ) {
+		// alarm 1, 2, 3, & 4
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "Water Filter", 40, 150 );
+		printTxt ( "Charcoal Filter", 40, 170 );
+		printTxt ( "NH3 Filter", 40, 190 );
+		printTxt ( "Sponge Filter", 40, 210 );
+	}
+	if ( ( alarm1 == 1 ) && ( alarm2 == 0 ) && (alarm3 == 1 ) & ( alarm4 == 0 ) ) {
+		// alerm 1 & 3
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "Water Filter", 40, 150 );
+		printTxt ( "NH3 Filter", 40, 170 );
+	}
+	if ( ( alarm1 == 1 ) && ( alarm2 == 0 ) && (alarm3 == 1 ) & ( alarm4 == 1 ) ) {
+		// alarm 1, 3, & 4
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "Water Filter", 40, 150 );
+		printTxt ( "NH3 Filter", 40, 170 );
+		printTxt ( "Sponge Filter", 40, 190 );
+	}
+	if ( ( alarm1 == 1 ) && ( alarm2 == 0 ) && (alarm3 == 0 ) & ( alarm4 == 1 ) ) {
+		// alarm 1 & 4
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "Water Filter", 40, 150 );
+		printTxt ( "Sponge Filter", 40, 170 );
+	}
+	if ( ( alarm1 == 0 ) && ( alarm2 == 1 ) && (alarm3 == 0 ) & ( alarm4 == 0 ) ) {
+		// alarm 2 
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "Charcoal Filter", 40, 150 );
+	}
+	if ( ( alarm1 == 0 ) && ( alarm2 == 1 ) && (alarm3 == 1 ) & ( alarm4 == 0 ) ) {
+		// alarm 2 & 3
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "Charcoal Filter", 40, 150 );
+		printTxt ( "NH3 Filter", 40, 170 );
+	}
+	if ( ( alarm1 == 0 ) && ( alarm2 == 1 ) && (alarm3 == 1 ) & ( alarm4 == 1 ) ) {
+		// alarm 2, 3 & 4
+		setFont ( SMALL, ILI9341_YELLOW );
+		tft.setCursor ( 40, 150 );
+		printTxt ( "Charcoal Filter", 40, 150 );
+		printTxt ( "NH3 Filter", 40, 170 );
+		printTxt ( "Sponge Filter", 40, 190 );
+	}
+	if ( ( alarm1 == 0 ) && ( alarm2 == 1 ) && (alarm3 == 0 ) & ( alarm4 == 1 ) ) {
+		// alarm 2 & 4
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "Charcoal Filter", 40, 150 );
+		printTxt ( "Sponge Filter", 40, 170 );
+	}
+	if ( ( alarm1 == 0 ) && ( alarm2 == 0 ) && (alarm3 == 1 ) & ( alarm4 == 0 ) ) {
+		// alarm 3
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "NH3 Filter", 40, 150 );
+	}
+	if ( ( alarm1 == 0 ) && ( alarm2 == 0 ) && (alarm3 == 1 ) & ( alarm4 == 1 ) ) {
+		// alarm 3 & 4
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "NH3 Filter", 40, 150 );
+		printTxt ( "Sponge Filter", 40, 170 );
+	}
+	if ( ( alarm1 == 0 ) && ( alarm2 == 0 ) && (alarm3 == 0 ) & ( alarm4 == 1 ) ) {
+		// alarm 4
+		setFont ( SMALL, ILI9341_YELLOW );
+		printTxt ( "Sponge Filter", 40, 150 );
+	}
+	//	Serial.println ( "mainScreen 3" );
+	if ( setTempScale == 1 ) {
+		sprintf ( degC_F, "F" );
+	}               //Print deg C or deg F
+	else {
+		sprintf ( degC_F, "C" );
+	}
+
+	// if ( refreshAll ){
+
+		setFont ( SMALL, ILI9341_GREEN );
+		printTxt ( "Water Temp:", 169, 148 );
+		tft.drawCircle ( 304, 150, 1, ILI9341_GREEN );
+		printTxt ( degC_F, 309, 148 );
+		tft.fillRoundRect ( 200, 189, 103, 14, 14/8, ILI9341_BLACK );
+		tft.fillRoundRect ( 182, 203, 123, 22, 18/8, ILI9341_BLACK );
+	// }
+
+	// if ( setTempScale == 0 ){	
+	if ( ( tempW > 50 ) || ( tempW < 10 ) ) {                 //range in deg C no matter what
+		setFont ( SMALL, ILI9341_RED );
+		printTxt ( "Error", 260, 148 );
+	}
+	// }
+	else {
+		tft.fillRoundRect ( 260, 148, 30, 12, 12/8, ILI9341_BLACK );	
+
+		if ( setTempScale == 1 ) {
+			tempW = ( ( tempW * 1.8 ) + 32.05 );
+		}         //C to F with rounding
+		if ( tempHeatflag == true ) {                     //Water temperature too LOW
+			setFont ( SMALL, ILI9341_BLUE );
+			tft.setCursor ( 260, 148 );
+			tft.print (tempW, 1);
+			setFont ( SMALL, ILI9341_YELLOW );
+			printTxt ( "Heater ON", 203, 191 );
+		}
+		if ( tempAlarmflag == true ) {  					//Water temperature too HIGH
+			setFont ( SMALL, ILI9341_RED );
+			tft.setCursor ( 260, 148 );
+			tft.print (tempW, 1);
+		}
+		else {
+			setFont ( SMALL, ILI9341_GREEN );
+			tft.setCursor ( 260, 148 );
+			tft.print (tempW, 1);
+		}
+	}
+	if ( ( tempAlarmflag == true ) ) {    //Alarm: H20 temp Below or Above offsets
+		setFont ( LARGE, ILI9341_GREEN );
+		printTxt ( "ALARM!!", 185, 204 );
+	}	
+}
+
+void screenReturn () {                                   //Auto Return to MainScreen()
+	if ( SCREEN_RETURN == true ) {
+		if ( dispScreen != 0 ) {
+			if (ctp.touched () ) {
+				processMyTouch ();
+			}
+			else {
+				returnTimer++;
+			}
+			if ( returnTimer > setReturnTimer ) {
+				returnTimer = 0;
+				ReadFromEEPROM ();
+				dispScreen = 0;
+				clearScreen ();
+				mainScreen ( true );
+			}
+		}
+	}
+}
+
+/******************************** END OF MAIN SCREEN **********************************/
 
 /********************************* MISC. FUNCTIONS ************************************/
 void clearScreen () {
 	tft.fillRect ( 1, 15, 318, 226, ILI9341_BLACK );
+}
+
+void printTxt ( char* text, int16_t x1, int16_t y1 ) {
+	tft.setCursor ( x1, y1 );
+	tft.print ( text );
+}
+
+void printVar (int16_t var, int16_t x1, int16_t y1) {
+	tft.setCursor ( x1, y1 );
+	tft.print ( var );
 }
 
 void printButton ( char* text, int x1, int y1, int x2, int y2, boolean fontsize = false, int buttonColor = 0 ) {
@@ -456,16 +718,20 @@ void printButton ( char* text, int x1, int y1, int x2, int y2, boolean fontsize 
 		tft.setTextSize ( SMALL );
 		fx = x1 + ( ( x2 / 2 ) - ( ( stl * 6 ) / 2) );
 		fy = y1 + ( ( y2 / 2 ) - 3 );
-		tft.setCursor(fx, fy);
-		tft.printf ( text );
+		printTxt ( text , fx, fy );
 	}
 	else {
 		tft.setTextSize ( SMALL );
 		fx = x1 + ( ( x2 / 2 ) - ( ( stl * 6 ) / 2) );
 		fy = y1 + ( ( y2 / 2 ) - 3 );
-		tft.setCursor(fx, fy);
-		tft.printf ( text );
+		printTxt ( text , fx, fy );
 	}
+}
+void printctr ( char* ctrtxt, int fy ){
+	int stl = strlen ( ctrtxt );
+	int fx;
+	fx = 1 + ( ( 318 / 2 ) - ( ( stl * 6 ) / 2) );
+	tft.setCursor ( fx, fy );
 }
 
 void printHeader ( char* headline ) {
@@ -482,14 +748,22 @@ void printHeader ( char* headline ) {
 	
 }
 
-void waitForIt ( int x1, int y1, int x2, int y2 ){   // Draw a red frame while a button is touched
-	
+void setFont ( boolean font,  int uint16_t) {
+	tft.setTextColor (  uint16_t );                  
+	if ( font == LARGE )	tft.setTextSize ( LARGE );  
+	else if ( font == SMALL ) tft.setTextSize ( SMALL );
+	else if ( font == MEDIUM ) tft.setTextSize ( MEDIUM );
+	else if ( font == XLARGE ) tft.setTextSize ( XLARGE );
+}
+
+void waitForIt ( int x1, int y1, int x2, int y2 ) {   // Draw a red frame while a button is touched
 	tft.drawRoundRect ( x1, y1, x2, y2, y2 / 8, ILI9341_RED );
 	while ( ctp.touched () ) {
-		delay(250);
+		delay(125);
 	}
 	
-	tft.drawRoundRect ( x1, y1, x2, y2, y2 / 8, ILI9341_BLUE );
+	tft.drawRoundRect ( x1, y1, x2, y2, y2 / 8, ILI9341_WHITE );
+
 }
 
 void feedingTimeOnOff () {
@@ -508,14 +782,13 @@ void feedingTimeOnOff () {
 	if ( ( FEEDTime == 1 ) ) {
 		tft.fillRoundRect ( 70, 150, 180, 20 , 20/8, ILI9341_GREEN );
 		tft.setCursor( 94, 154 );
-		tft.setTextSize ( SMALL );
-		tft.setTextColor ( ILI9341_BLACK );
+		setFont ( SMALL, ILI9341_BLACK );
 		tft.printf ( "Feeding Time %d ON", feedTime );
 	}
 	if ( (  FEEDTime == 0 ) ) {
 		tft.fillRoundRect ( 70, 150, 180, 20, 20/8, ILI9341_RED );
 		tft.setCursor( 94, 154 );
-		tft.setTextSize ( SMALL );
+		setFont (SMALL, ILI9341_WHITE );
 		tft.printf ( "Feeding Time %d OFF", feedTime );
 	}
 	tft.drawRoundRect ( 70, 150, 180, 20, 20/8, ILI9341_WHITE );
@@ -523,80 +796,71 @@ void feedingTimeOnOff () {
 
 void TimeSaver ( boolean refreshAll = false ) {
 	if ( setTimeFormat == 0 ) {                              //24HR Format
-		tft.setTextSize ( XLARGE );
-		tft.setTextColor ( ILI9341_BLUE );
+		setFont ( XLARGE, ILI9341_BLUE );
 		if ( ( rtc [2] >= 0 ) && ( rtc [2] <= 9 ) ) {                   //Display HOUR
-			tft.fillRoundRect ( 80, 95, 31, 50, 20/8, ILI9341_BLACK );
+			tft.fillRoundRect ( 80, 95, 55, 50, 20/8, ILI9341_BLACK );
 			tft.setTextColor ( ILI9341_BLUE );
 			tft.setCursor ( 112, 95 );
 			tft.print ( rtc [2] );
 		}
 		else {
+			tft.fillRoundRect ( 80, 95, 55, 50, 20/8, ILI9341_BLACK );
 			tft.setCursor ( 80, 95 );
 			tft.print ( rtc [2] );
 		}
 	}
 
 	if ( setTimeFormat == 1 ) {                                //12HR Format
-		tft.setTextColor ( ILI9341_BLUE );
-		tft.setTextSize ( XLARGE );
+		setFont ( XLARGE, ILI9341_BLUE );
 		if ( rtc [2] == 0 ) {                                    //Display HOUR
-			tft.setCursor ( 80, 95 )		;
-			tft.print ( "12" );
+			tft.fillRoundRect ( 80, 95, 55, 50, 20/8, ILI9341_BLACK );
+			printTxt ( "12", 80, 95 );
 		}
 		if ( ( rtc [2] >= 1 ) && ( rtc [2] <= 9 ) ) {
-			tft.fillRoundRect ( 80, 95, 31, 50, 20/8, ILI9341_BLACK );
+			tft.fillRoundRect ( 80, 95, 55, 50, 20/8, ILI9341_BLACK );
 			tft.setTextColor ( ILI9341_BLUE );
-			tft.setCursor ( 112, 95 );
-			tft.print ( rtc [2] );
+			printVar ( rtc [2], 112, 95 );
 		}
 		if ( ( rtc [2] >= 10 ) && ( rtc [2] <= 12 ) ) {
-			tft.setCursor ( 80, 95 );
-			tft.print ( rtc [2] );
+			tft.fillRoundRect ( 80, 95, 55, 50, 20/8, ILI9341_BLACK );
+			printVar ( rtc[2], 80, 95 );
 		}
 		if ( ( rtc [2] >= 13 ) && ( rtc [2] <= 21 ) ) {
-			tft.fillRoundRect ( 80, 95, 31, 50, 20/8, ILI9341_BLACK );
+			tft.fillRoundRect ( 80, 95, 55, 50, 20/8, ILI9341_BLACK );
 			tft.setTextColor ( ILI9341_BLUE );
-			tft.setCursor ( 80, 95 );
-			tft.print ( rtc [2] - 12 );
+			printVar ( ( rtc [2] - 12 ), 112, 95 );
 		}
 		if ( rtc [2] >= 22 ) {
-			tft.setCursor ( 80, 95 );
-			tft.print ( rtc [2] - 12 );
+			tft.fillRoundRect ( 80, 95, 55, 50, 20/8, ILI9341_BLACK );
+			printVar ( ( rtc [2] - 12 ), 80, 95 );
 		}
 
 		if ( ( rtc [2] >= 0 ) && ( rtc [2] <= 11 ) ) {                  //Display AM/PM
-			tft.setTextColor ( ILI9341_BLUE );
-			tft.setTextSize ( MEDIUM );
-			tft.setCursor ( 220, 108 );
-			tft.print ( "AM" );
+			setFont ( MEDIUM, ILI9341_BLUE );
+			printTxt ( "AM", 220, 108 );
 		}
 		else {
-			tft.setTextColor ( ILI9341_BLUE );
-			tft.setTextSize ( MEDIUM );
-			tft.setCursor ( 220, 108 );
-			tft.print ( "PM" );
+			setFont ( MEDIUM, ILI9341_BLUE );
+			printTxt ( "PM", 220, 108 );
 		}
 	}
 
-		tft.setTextColor ( ILI9341_BLUE );
-		tft.setTextSize ( XLARGE );
-		tft.fillCircle ( 140, 100, 3, ILI9341_BLUE );
-		tft.fillCircle ( 140, 115, 3, ILI9341_BLUE );
+	setFont ( XLARGE, ILI9341_BLUE );
+	tft.fillCircle ( 140, 100, 3, ILI9341_BLUE );
+	tft.fillCircle ( 140, 115, 3, ILI9341_BLUE );
+	
 	if ( ( rtc [1] >= 0 ) && ( rtc [1] <= 9 ) ) {                      //Display MINUTES
-		tft.setCursor ( 156, 95 );
-		tft.print ( "0" );
-		tft.setCursor ( 188, 95 );
-		tft.print ( rtc [1] );
+		tft.fillRoundRect ( 156, 95, 63, 50, 20/8, ILI9341_BLACK );
+		printTxt ( "0", 156, 95 );
+		printVar ( rtc [1], 188, 95 );
 	}
 	else {
-		tft.setCursor ( 188, 95 );
-		tft.print ( rtc [1] );
+		tft.fillRoundRect ( 156, 95, 63, 50, 20/8, ILI9341_BLACK );
+		printVar ( rtc [1], 156, 95 );
 	}
 }
 
-void screenSaver ()                               //Make the Screen Go Blank after so long
-{
+void screenSaver () {                              //Make the Screen Go Blank after so long
 	if ( ( setScreensaver == 1 ) && ( tempAlarmflag == false ) ) {
 		if (ctp.touched () ) {
 			processMyTouch ();
@@ -616,134 +880,122 @@ void screenSaver ()                               //Make the Screen Go Blank aft
 			}
 		}
 	}	
+	if ( ( setScreensaver == 1 ) && ( tempAlarmflag == true ) && ( dispScreen == 0) ) {
+		returnTimer = 0;
+		screenSaverTimer = 0;
+		clearScreen();
+		mainScreen();
+	}
 }	
+
+void updateScreen(){  
+// UNDER CONSTRUCTION
+	// lights on
+	if ( Lights_On_Flag == true ){
+		 tft.setCursor ( 100, 60 );
+       tft.drawRoundRect ( 100, 60, 100, 20, 20/8, ILI9341_BLACK );
+       tft.print( "Tank light is On" );
+	}
+	else  {
+		 tft.setCursor ( 100, 60 );
+       tft.drawRoundRect ( 100, 60, 100, 20, 20/8, ILI9341_BLACK );
+	}
+	// lights off
+	// feeding time 1
+	// feeding time 2
+	// feeding time 3
+	// feeding time 4
+ 	// if () {
+        // tft.setCursor ( 100
+        // tft.drawRoundRect ( 100, 60, 100, 20,, 60 ); 20/8, ILI9341_BLACK );
+        // tft.printf("%02d:%02d   Feed Fish", feedFish1H, feedFish1M);
+   // }
+}
 
 void genSetSelect () {
 	if ( setCalendarFormat == 0 ) {                     //Calendar Format Buttons
 		tft.fillRoundRect ( 185, 19, 120, 20, 20/8, ILI9341_GREEN );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_BLACK );
-		tft.setCursor ( 207, 23 );
-		tft.print (F( "DD MM YYYY" ));
+		setFont ( SMALL, ILI9341_BLACK );
+		printTxt ( "DD MM YYYY", 207, 23 );
 		tft.fillRoundRect ( 185, 45, 120, 20, 20/8, ILI9341_BLUE );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 199, 49 );
-		tft.print (F( "MTH DD YYYY" ));
+		setFont (SMALL, ILI9341_WHITE);
+		printTxt ( "MTH DD YYYY", 199, 49 );
 	}
 	else {
 		tft.fillRoundRect ( 185, 19, 120, 20, 20/8, ILI9341_BLUE );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 207, 23 );
-		tft.print (F( "DD MM YYYY" ));
+		setFont ( SMALL, ILI9341_WHITE );
+		printTxt ( "DD MM YYYY", 207, 23 );
 		tft.fillRoundRect ( 185, 45, 120, 20, 20/8, ILI9341_GREEN );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_BLACK );
-		tft.setCursor ( 199, 49 );
-		tft.print (F( "MTH DD YYYY" ));
+		setFont (SMALL, ILI9341_BLACK );
+		printTxt ( "MTH DD YYYY", 199, 49 );
 	}
 	if ( setTimeFormat == 0 ) {                         //Time Format Buttons
 		tft.fillRoundRect ( 195, 76, 40, 20, 20/8, ILI9341_BLUE );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 201, 80 );
-		tft.print (F( "12HR" ));
+		setFont ( SMALL, ILI9341_WHITE );
+		printTxt ( "12HR", 201, 80);
 		tft.fillRoundRect ( 255, 76, 40, 20, 20/8, ILI9341_GREEN );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_BLACK );
-		tft.setCursor ( 261, 80 );
-		tft.print (F( "24HR" ));
+		setFont ( SMALL, ILI9341_BLACK);
+		printTxt ( "24HR", 261, 80);
 	}
 	else {
 		tft.fillRoundRect ( 195, 76, 40, 20, 20/8, ILI9341_GREEN  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_BLACK );
-		tft.setCursor ( 201, 80 );
-		tft.print (F( "12HR" ));
+		setFont ( SMALL, ILI9341_BLACK );
+		printTxt ( "12HR", 201, 80 );
 		tft.fillRoundRect ( 255, 76, 40, 20, 20/8, ILI9341_BLUE  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 261, 80 );
-		tft.print (F( "24HR" ));
+		setFont ( SMALL, ILI9341_WHITE );
+		printTxt ( "24HR", 261, 80 );
 	}
 	if ( setTempScale == 0 ) {                          //Temperature Scale Buttons
 		tft.fillRoundRect ( 195, 107, 40, 20, 20/8, ILI9341_GREEN  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_BLACK );
-		tft.setCursor ( 215, 111 );
-		tft.print (F( "C" ));
+		setFont ( SMALL, ILI9341_BLACK );
+		printTxt ( "C", 215, 111 );
 		tft.fillRoundRect ( 255, 107, 40, 20, 20/8, ILI9341_BLUE  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 275, 111 );
-		tft.print (F( "F" ));
+		setFont ( SMALL, ILI9341_WHITE );
+		printTxt ( "F", 275, 111 );
 		tft.drawCircle( 210, 113, 1, ILI9341_BLACK );
 		tft.drawCircle ( 270, 113, 1, ILI9341_WHITE );
 	}
 	else {
 		tft.fillRoundRect ( 195, 107, 40, 20, 20/8, ILI9341_BLUE  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 215, 111 );
-		tft.print (F( "C" ));
+		setFont (SMALL, ILI9341_WHITE );
+		printTxt ( "C", 215, 111 );
 		tft.fillRoundRect ( 255, 107, 40, 20, 20/8, ILI9341_GREEN  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_BLACK );
-		tft.setCursor ( 275, 111 );
-		tft.print (F( "F" ));
+		setFont (SMALL, ILI9341_BLACK );
+		printTxt ( "F", 275, 111 );
 		tft.drawCircle( 210, 113, 1, ILI9341_WHITE );
 		tft.drawCircle ( 270, 113, 1, ILI9341_BLACK );
 	}	
-	if ( setScreensaver == 1 )                         //Screensaver Buttons
-			{
+	if ( setScreensaver == 1 ) {                        //Screensaver Buttons
 		tft.fillRoundRect ( 195, 138, 40, 20, 20/8, ILI9341_GREEN  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_BLACK );
-		tft.setCursor ( 209, 142 );
-		tft.print (F( "ON" ) );
+		setFont ( SMALL, ILI9341_BLACK );
+		printTxt ( "ON", 209, 142 );
 		tft.fillRoundRect ( 255, 138, 40, 20, 20/8, ILI9341_BLUE  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 265, 142 );
-		tft.print (F( "OFF" ) );
+		setFont ( SMALL, ILI9341_WHITE );
+		printTxt ( "OFF", 265, 142 );
 	}
 	else {
 		tft.fillRoundRect ( 195, 138, 40, 20, 20/8, ILI9341_BLUE  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 209, 142 );
-		tft.print (F( "ON" ) );
+		setFont ( SMALL, ILI9341_WHITE );
+		printTxt ( "ON", 209, 142 );
 		tft.fillRoundRect ( 255, 138, 40, 20, 20/8, ILI9341_GREEN  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_BLACK );
-		tft.setCursor ( 265, 142 );
-		tft.print (F( "OFF" ) );
+		setFont ( SMALL, ILI9341_BLACK );
+		printTxt ( "OFF", 265, 142 );
 	}
-	if ( setAutoStop == 1 )                            //Auto-Stop on Feed Buttons
-			{
+	if ( setAutoStop == 1 ) {                           //Auto-Stop on Feed Buttons
 		tft.fillRoundRect ( 195, 169, 40, 20, 20/8, ILI9341_GREEN  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_BLACK );
-		tft.setCursor ( 209, 173 );
-		tft.print (F( "ON" ) );
+		setFont ( SMALL, ILI9341_BLACK );
+		printTxt ( "ON", 209, 173 );
 		tft.fillRoundRect ( 255, 169, 40, 20, 20/8, ILI9341_BLUE  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 265, 173 );
-		tft.print (F( "OFF" ) );
+		setFont ( SMALL, ILI9341_WHITE );
+		printTxt ( "OFF", 265, 173 );
 	}
 	else {
 		tft.fillRoundRect ( 195, 169, 40, 20, 20/8, ILI9341_BLUE  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 209, 173 );
-		tft.print (F( "ON" ) );
+		setFont ( SMALL, ILI9341_WHITE );
+		printTxt ( "ON", 209, 173 );
 		tft.fillRoundRect ( 255, 169, 40, 20, 20/8, ILI9341_GREEN  );
-		tft.setTextSize ( SMALL);
-		tft.setTextColor ( ILI9341_BLACK );
-		tft.setCursor ( 265, 173 );
-		tft.print (F( "OFF" ) );
+		setFont ( SMALL, ILI9341_BLACK );
+		printTxt ( "OFF", 265, 173 );
 	}
 	tft.drawRoundRect ( 185, 19, 120, 20, 20/8, ILI9341_WHITE );
 	tft.drawRoundRect ( 185, 45, 120, 20, 20/8, ILI9341_WHITE );
@@ -754,56 +1006,8 @@ void genSetSelect () {
 	}	
 }		
 
-
 /*******************************END OF MISC. FUNCTIONS ************************************/
 
-/*********************** MAIN SCREEN ********** dispScreen = 0 ************************/
-void mainScreen( boolean refreshAll = false ){
-
-	if ( dispScreen != 0){
-		tft.fillScreen(ILI9341_BLACK);
-		tft.drawRect( 0, 0, 320, 240, ILI9341_BLUE);            //Outside Border
-		dispScreen = 0;
-	}
-		tft.setTextColor(ILI9341_WHITE);  tft.setTextSize( SMALL );
-		tft.drawRect ( 0, 125, 319, 12, ILI9341_BLUE);        //Horizontal Divider
-		tft.fillRect ( 0, 0, 319, 14, ILI9341_BLUE );             //Top Bar
-		tft.setCursor(60, 4); 
-		tft.setTextColor(ILI9341_YELLOW);    tft.setTextSize( SMALL );
-		tft.print(F("Bill's Aquarium Controller v"));
-		tft.print(VER);
-		tft.setTextColor(ILI9341_RED);
-		tft.setCursor( 110, 128 );
-		tft.print (F( "MONITORS & ALERTS" ));
-		tft.setTextColor ( ILI9341_YELLOW );
-		tft.setTextSize ( SMALL);
-		tft.setCursor( 30, 60 );
-		tft.print (F( "Next Event "));
-}
-
-void screenReturn ()                                    //Auto Return to MainScreen()
-{
-	if ( SCREEN_RETURN == true ) {
-		if ( dispScreen != 0 ) {
-			if (ctp.touched () ) {
-				processMyTouch ();
-			}
-			else {
-				returnTimer++;
-			}
-			if ( returnTimer > setReturnTimer ) {
-				returnTimer = 0;
-//				LEDtestTick = false;
-//				colorLEDtest = false;
-				ReadFromEEPROM ();
-				dispScreen = 0;
-				clearScreen ();
-				mainScreen ( true );
-			}
-		}
-	}
-}
-/******************************** END OF MAIN SCREEN **********************************/
 
 /******************************** MENU TEMPLATE SCREEN ********************************/
 void menuTemplate () {
@@ -847,7 +1051,6 @@ void menuTemplate () {
 	if ( dispScreen == 15 ) {
 		printHeader ( "Maintenance Menu" );
 	}
-
 	printButton ( "CANCEL", canC [0], canC [1], canC [2], canC [3], SMALL );
 	tft.drawRect ( 0, 196, 319, 2,  ILI9341_GRAY );
 	if (dispScreen != 1 ) {
@@ -862,20 +1065,24 @@ void menuTemplate () {
 
 /*********************** MENU SCREEN ********** dispScreen = 1 ************************/
 void menuScreen () {
-	tft.fillScreen(ILI9341_BLACK);
+	// tft.fillScreen(ILI9341_BLACK);
 	menuTemplate ();
 	printButton ( "Time and Date", tanD [0], tanD [1], tanD [2], tanD [3] );
 	printButton ( "H2O Temp Control", temC [0], temC [1], temC [2], temC [3] );
 	printButton ( "General Settings", gSet [0], gSet [1], gSet [2], gSet [3] );
 	printButton ( "Automatic Feeder", aFeed [0], aFeed [1], aFeed [2], aFeed [3] );
-	printButton ( "Maintenace", about [0], about [1], about [2], about [3] );
+	// printButton ( "Maintenace", maint [0], maint [1], maint [2], maint [3] );
 	printButton ( "Light Control", liteS [0], liteS [1], liteS [2], liteS [3] );
 }	
 /********************************* END OF MENU1 SCREEN *********************************/
 
 /************** TIME and DATE SCREEN ********** dispScreen = 2 ************************/
 void clockScreen ( boolean refreshAll = true ) {
-
+	if ( refreshAll ) {
+		for ( int i = 0; i < 7; i++ ) {
+			rtcSet [i] = rtc [i];
+			rtcSet2 [i] = rtc [i];
+		}
 		menuTemplate ();
 		printButton ( "+", houU [0], houU [1], houU [2], houU [3], SMALL );     //hour up
 		printButton ( "+", minU [0], minU [1], minU [2], minU [3], SMALL );     //min up
@@ -887,14 +1094,11 @@ void clockScreen ( boolean refreshAll = true ) {
 		printButton ( "-", monD [0], monD [1], monD [2], monD [3], SMALL );     //month down
 		printButton ( "-", dayD [0], dayD [1], dayD [2], dayD [3], SMALL );     //day down
 		printButton ( "-", yeaD [0], yeaD [1], yeaD [2], yeaD [3], SMALL );     //year down
+	}
 	
-
 	ReadFromEEPROM ();
 	timeDispH = rtcSet [2];
 	timeDispM = rtcSet [1];
-	if ( rtcSet [6] == 0 ){
-		rtcSet [6] = 2000;
-	}
 	xTimeH = 107;
 	yTime = 52;
 	xColon = xTimeH + 72;
@@ -903,116 +1107,82 @@ void clockScreen ( boolean refreshAll = true ) {
 	xTimeAMPM = xTimeH + 155;
 	timeChange ();
 
-	tft.setTextSize ( SMALL );
-	tft.setTextColor (ILI9341_WHITE);
-	tft.setCursor ( 20, 142 );
-	tft.print ( "Date" );
-	tft.setCursor ( 149, 142 );
-	tft.print ( "/" );
-	tft.setCursor(219, 142 );
-	tft.print ( "/"  );
+	setFont ( SMALL, ILI9341_WHITE );
+	printTxt ( "Date", 20, 142 );
+	printTxt ( "/", 149, 142 );
+	printTxt ( "/", 219, 142 );
 
-	if ( setCalendarFormat == 0 )                             //DD/MM/YYYY Format
-			{
-		tft.setTextSize ( SMALL );
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 5, 160 );
-		tft.print ( "(DD/MM/YYYY)" );
-		tft.setTextSize ( MEDIUM );
-		tft.setTextColor ( ILI9341_WHITE );
+	if ( setCalendarFormat == 0 ) {                            //DD/MM/YYYY Format
+		setFont ( SMALL, ILI9341_WHITE );
+		printTxt ( "(DD/MM/YYYY)", 5, 160 );
+		setFont ( MEDIUM, ILI9341_WHITE );
 		
 
-		if ( ( rtcSet [4] >= 0 ) && ( rtcSet [4] <= 9 ) )              //Set DAY
-				{
-			tft.setCursor ( 107 , 142 );
-			tft.print ( "0" );
-			tft.setCursor ( 123, 142 );
-			tft.print ( rtcSet [4] );
+		if ( ( rtcSet [4] >= 0 ) && ( rtcSet [4] <= 9 ) ) {             //Set DAY
+			printTxt ( "0", 107, 142 );		
+			printVar ( rtcSet [4], 123, 142 );			
 		}
 		else {
-			tft.setCursor ( 107, 142);
-			tft.print ( rtcSet [4] );
+			printVar ( rtcSet [4], 107, 142 );			
 		}
-		if ( ( rtcSet [5] >= 0 ) && ( rtcSet [5] <= 9 ) )              //Set MONTH
-				{
-			tft.setCursor ( 177, 142 );
-			tft.print ( "0" );
-			tft.setCursor ( 193, 142 );
-			tft.print ( rtcSet [5] );
+		if ( ( rtcSet [5] >= 0 ) && ( rtcSet [5] <= 9 ) ) {              //Set MONTH
+			printTxt ( "0", 177, 142 );
+			printVar ( rtcSet [5], 193, 142 );			
 		}
 		else {
-			tft.setCursor ( 177, 142 );
-			tft.print ( rtcSet [5] );
+			printVar ( rtcSet [5], 177, 142 );			
 		}
 	}
 	
-	else if ( setCalendarFormat == 1 )                             //MM/DD/YYYY Format
-			{
-			tft.setTextSize ( SMALL );
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 5, 160 );
-		tft.print ( "(MM/DD/YYYY)" );
-		tft.setTextSize ( MEDIUM );
-		tft.setTextColor ( ILI9341_WHITE );
+	else if ( setCalendarFormat == 1 ) {                            //MM/DD/YYYY Format
+		setFont ( SMALL, ILI9341_WHITE );
+		printTxt ( "(MM/DD/YYYY)", 5, 160 );
+		setFont ( MEDIUM, ILI9341_WHITE );
 		
-		if ( ( rtcSet [5] >= 0 ) && ( rtcSet [5] <= 9 ) )              //Set MONTH
-				{
+		if ( ( rtcSet [5] >= 0 ) && ( rtcSet [5] <= 9 ) ) {             //Set MONTH
 			tft.fillRoundRect ( 107, 142 , 40, 20, 20/8 , ILI9341_BLACK);
-			tft.setCursor ( 107 , 142 );
-			tft.print ( "0" );
-			tft.setCursor ( 123, 142 );
-			tft.print ( rtcSet [5] );
+			printTxt ( "0", 107, 142 );
+			printVar ( rtcSet [5], 123, 142 );
 		}
 		else {
-			tft.setCursor ( 107, 142);
 			tft.fillRoundRect ( 107, 142 , 40, 20, 20/8 , ILI9341_BLACK);
-			tft.print ( rtcSet [5] );
+			printVar ( rtcSet [5], 107, 142 );
 		}
-		if ( ( rtcSet [4] >= 0 ) && ( rtcSet [4] <= 9 ) )              //Set DAY
-				{
-				tft.fillRoundRect ( 177, 142 , 40, 20, 20/8 , ILI9341_BLACK);
-				tft.setCursor ( 177, 142 );
-			tft.print ( "0" );
-			tft.setCursor ( 193, 142 );
-			tft.print ( rtcSet [4] );
+		if ( ( rtcSet [4] >= 0 ) && ( rtcSet [4] <= 9 ) ) {             //Set DAY
+			tft.fillRoundRect ( 177, 142 , 40, 20, 20/8 , ILI9341_BLACK);
+			printTxt ( "0", 177, 142 );
+			printVar ( rtcSet [4], 193, 142 );
 		}
 		else {
 			tft.fillRoundRect ( 177, 142 , 40, 20, 20/8 , ILI9341_BLACK);
-			tft.setCursor ( 177, 142 );
-			tft.print ( rtcSet [4] );
+			printVar ( rtcSet [4], 177, 142 );
 		}
 	}
 	tft.fillRoundRect ( 247, 142 , 60, 20, 20/8 , ILI9341_BLACK);
-	tft.setCursor ( 247, 142 );
 	tft.setTextSize ( MEDIUM );
-	tft.print ( rtcSet [6] );                //Set YEAR
+	printVar ( rtcSet [6], 247, 142 );
 
 }
 
 void timeChange () {
 	tft.setTextSize( SMALL );
-	tft.setCursor ( 20, yTime );
-	tft.print (F( "Time" ));
+	printTxt ( "Time", 20, yTime );
 
-	if ( setTimeFormat == 0 )                                 //24HR Format
-			{
+	if ( setTimeFormat == 0 ) {                                //24HR Format
 		tft.setTextSize ( SMALL);
-		tft.setCursor ( 20, (yTime + 18 ) );
-		tft.print (F( "(24HR)" ));
+		printTxt ( "(24HR)", 20, ( yTime + 18 ) );
 	}
 
-	if ( setTimeFormat == 1 )                                 //12HR Format
-			{
+	if ( setTimeFormat == 1 ) {                                 //12HR Format
 		tft.setTextSize ( SMALL );
-		tft.setCursor ( 20, (yTime + 18 ) );
-		tft.print (F( "(12HR)" ));
+		printTxt ( "(12HR)", 20, (yTime + 18 ) );
 	}
 
 	timeCorrectFormat ();
 }
 
 void buildCorrectTime () {
-	char minute [3], stunde [3], ampm [4];
+	char minute [3], hour1 [3], ampm [4];
 	if ( ( timeDispM >= 0 ) && ( timeDispM <= 9 ) ) {
 		sprintf ( minute, "%i%i", 0, timeDispM );
 	}               //adds 0 to minutes
@@ -1021,45 +1191,82 @@ void buildCorrectTime () {
 	}
 	if ( setTimeFormat == 1 ) {
 		if ( timeDispH == 0 ) {
-			sprintf ( stunde, "%i", 12 );
+			sprintf ( hour1, "%i", 12 );
 		}                //12 HR Format
 		else {
 			if ( timeDispH > 12 ) {
-				sprintf ( stunde, "%i", timeDispH - 12 );
+			sprintf ( hour1, "%i", timeDispH - 12 );
 			}
 			else {
-				sprintf ( stunde, "%i", timeDispH );
+			sprintf ( hour1, "%i", timeDispH );
 			}
 		}
-	}
-
-	if ( timeDispH < 12 ) {
+	}	
+	if ( timeDispH < 12 ) { //Adding the AM/PM sufffix
 		sprintf ( ampm, " AM" );
-	}              //Adding the AM/PM sufffix
+		AM_PM = 1;
+	}              
 	else {
 		sprintf ( ampm, " PM" );
+		AM_PM = 2;
 	}
-
 	if ( setTimeFormat == 1 ) {
-		sprintf ( time, "%s:%s%s", stunde, minute, ampm );
+		sprintf ( time, "%s:%s%s", hour1, minute, ampm );
 	}
 	else {
 		sprintf ( time, "%i:%s", timeDispH, minute );
 	}
+
+//  second time display for light setting screen
+	if ( dispScreen == 4 ){
+		char minute2 [3], hour11 [3], ampm1 [4];
+		if ( ( timeDispM1 >= 0 ) && ( timeDispM1 <= 9 ) ) {
+			sprintf ( minute2, "%i%i", 0, timeDispM1 );
+		}               //adds 0 to minutes
+		else {
+			sprintf ( minute2, "%i", timeDispM1 );
+		}
+		if ( setTimeFormat == 1 ) {
+			if ( timeDispH1 == 0 ) {
+				sprintf ( hour11, "%i", 12 );
+			}                //12 HR Format
+			else {
+				if ( timeDispH1 > 12 ) {
+					sprintf ( hour11, "%i", timeDispH1 - 12 );
+				}
+				else {
+				sprintf ( hour11, "%i", timeDispH1 );
+				}
+			}
+			if ( timeDispH1 < 12 ) { //Adding the AM/PM sufffix
+				sprintf ( ampm, " AM" );
+				AM_PM = 1;
+			}              
+			else {
+				sprintf ( ampm, " PM" );
+				AM_PM = 2;
+			}
+			if ( setTimeFormat == 1 ) {
+				sprintf ( time1, "%s:%s%s", hour11, minute2, ampm );
+			}
+			else {
+				sprintf ( time1, "%i:%s", timeDispH1, minute2 );
+			}
+		}
+	}	
 }
 
 void timeCorrectFormat () {
-	tft.setTextSize ( MEDIUM );
-	tft.setTextColor ( ILI9341_WHITE );
-//	if (dispScreen != 14) {
+	setFont ( MEDIUM, ILI9341_WHITE );
 	buildCorrectTime ();
-//	}
-	//if ( timeDispH ) 
-	tft.setCursor ( xTimeH, yTime );
 	tft.fillRoundRect ( xTimeH, yTime , (xTimeH + 40), 20, 20/8 , ILI9341_BLACK);
 	tft.setTextColor ( ILI9341_WHITE );
-	tft.print ( time );            //Display time
-
+	printTxt ( time, xTimeH, yTime ); //Display time
+	if ( dispScreen == 4 ){
+	tft.fillRoundRect ( xTimeH, yTime1 , (xTimeH + 40), 20, 20/8 , ILI9341_BLACK);
+	tft.setTextColor ( ILI9341_WHITE );
+		printTxt ( time1, xTimeH, yTime1 ); // 
+	}	
 }
 /**************************** END OF TIME and DATE SCREEN *****************************/
 
@@ -1086,8 +1293,7 @@ void tempScreen ( boolean refreshAll = false ) {
 			temp2beA = alarmTempC;
 		}
 
-		if ( setTempScale == 1 ) {
-//      deg ="F";
+		if ( setTempScale == 1 ) { //      deg ="F";
 			sprintf ( degC_F, "F" );
 		}                //Print deg C or deg F
 		else {
@@ -1096,19 +1302,13 @@ void tempScreen ( boolean refreshAll = false ) {
 		}
 //    degC_F=deg;
 
-		tft.setTextSize ( SMALL );
-		tft.setTextColor ( ILI9341_WHITE );
-		tft.setCursor ( 94, 34 );
-		tft.print ( "Desired Temperature in" );
+		setFont ( SMALL, ILI9341_WHITE );
+		printTxt ( "Desired Temperature in", 94, 34 );
 		tft.drawCircle ( 245, 36, 1, ILI9341_WHITE );
-		tft.setCursor ( 250, 34 );
-		tft.print ( degC_F );
-		tft.setCursor ( 258, 34 );
-		tft.print ( ":" );
-		tft.setCursor ( 103, 84 );
-		tft.print ( "Temperature Offset:" );
-		tft.setCursor ( 121, 134 );
-		tft.print ( "Alarm Offset:" );
+		printTxt ( degC_F, 250, 34 );
+		printTxt ( ":", 258, 34 );
+		printTxt ( "Temperature Offset:", 103, 84 );
+		printTxt ( "Alarm Offset", 121, 134 );
 
 		printButton ( "-", temM [0], temM [1], temM [2], temM [3], true );      //temp minus
 		printButton ( "+", temP [0], temP [1], temP [2], temP [3], true );      //temp plus
@@ -1118,8 +1318,7 @@ void tempScreen ( boolean refreshAll = false ) {
 		printButton ( "+", almP [0], almP [1], almP [2], almP [3], true );      //alarm plus
 	}
 
-		tft.setTextSize ( MEDIUM );
-		tft.setTextColor ( ILI9341_WHITE );
+		setFont ( MEDIUM, ILI9341_WHITE );
 		tft.fillRoundRect (148, 54, 47, 25, 20/8, ILI9341_BLACK );
 		tft.setCursor ( 148, 54 );
 		tft.print ( temp2beS, 1 );
@@ -1134,33 +1333,102 @@ void tempScreen ( boolean refreshAll = false ) {
 /************************** END of H20 TEMP CONTROL SCREEN ****************************/
 
 /********** LIGHT CONTROL SCREEN ******** dispScreen = 4 ************************/
-void LightControlScreen ( boolean refreshAll = false ) {
+void LightControlScreen ( boolean refreshAll = true ) {
 
+	if ( refreshAll ) {
+		ReadFromEEPROM ();
+		rtcSet [2] = lightTime1H;
+		rtcSet [1] = lightTime1M;
+		rtcSet2 [2] = lightTime2H;
+		rtcSet2 [1] = lightTime2M;
+	}	
 	menuTemplate ();
 	tft.setTextSize( SMALL );
-	tft.setCursor ( 25, 46 );
-	tft.print (F( "Lights On" ));
-	tft.setCursor ( 25, 136 );
-	tft.print (F( "Lights Off" ));
+	printTxt ( "Lights On", 25, 46 );
+	printTxt ( "Lights Off", 25, 136 );
 
-	printButton ( "+", hou1U [0], hou1U [1], hou1U [2], hou1U [3], SMALL );     //hour up
-	printButton ( "+", min1U [0], min1U [1], min1U [2], min1U [3], SMALL );     //min up
-	printButton ( "-", hou1D [0], hou1D [1], hou1D [2], hou1D [3], SMALL );     //hour down
-	printButton ( "-", min1D [0], min1D [1], min1D [2], min1D [3], SMALL );     //min down
-	printButton ( "+", hou2U [0], hou2U [1], hou2U [2], hou2U [3], SMALL );     //hour up
-	printButton ( "+", min2U [0], min2U [1], min2U [2], min2U [3], SMALL );     //min up
-	printButton ( "-", hou2D [0], hou2D [1], hou2D [2], hou2D [3], SMALL );     //hour down
-	printButton ( "-", min2D [0], min2D [1], min2D [2], min2D [3], SMALL );     //min down
+	printButton ( "+", hou1U [0], hou1U [1], hou1U [2], hou1U [3], false );     //hour up
+	printButton ( "+", min1U [0], min1U [1], min1U [2], min1U [3], false );     //min up
+	printButton ( "-", hou1D [0], hou1D [1], hou1D [2], hou1D [3], false );     //hour down
+	printButton ( "-", min1D [0], min1D [1], min1D [2], min1D [3], false );     //min down
+	printButton ( "+", hou2U [0], hou2U [1], hou2U [2], hou2U [3], false );     //hour up
+	printButton ( "+", min2U [0], min2U [1], min2U [2], min2U [3], false );     //min up
+	printButton ( "-", hou2D [0], hou2D [1], hou2D [2], hou2D [3], false );     //hour down
+	printButton ( "-", min2D [0], min2D [1], min2D [2], min2D [3], false );     //min down
 
-	lightTime1H = rtcSet [2];
-	lightTime1M = rtcSet [1];
+	timeDispH = rtcSet [2];
+	timeDispM = rtcSet [1];
+	timeDispH1 = rtcSet2 [2];
+	timeDispM1 = rtcSet2 [1];
 	xTimeH = 118;
 	yTime = 55;
+	yTime1 = 142;
 	xColon = xTimeH + 82;
-	xTimeM10 = xTimeH + 80;
-	xTimeM1 = xTimeH + 96;
-	xTimeAMPM = xTimeH + 175;
 	timeChange ();
+}
+
+// void initLightTimerCounter(){   
+//   for (size_t j = 0; j<3; j++)
+//     light_on_time[j] = lighttimes[light_num][j]; 
+//     if( rtc [2] < light_on_time[0] || rtc [2] == light_on_time[0] && rtc [1] 
+//       < light_on_time[1]){
+//     }
+//     else{
+//       light_num = (light_num + 1) % NUM_LIGHTS;
+//       for (size_t j = 0; j<3; j++)
+//       light_on_time[j] = lighttimes[light_num][j];
+//       digitalWrite(LIGHTS,LOW); 
+//       Lights_On_Flag = !Lights_On_Flag;
+//         if(hour() < light_on_time[0] || hour() == light_on_time[0] && minute() 
+//           < light_on_time[1]){
+//         }
+//         else{
+//           light_num = (light_num + 1) % NUM_LIGHTS;
+//           for (size_t j = 0; j<3; j++)
+//           light_on_time[j] = lighttimes[light_num][j];
+//           digitalWrite(LIGHTS,HIGH);
+//           Lights_On_Flag =!Lights_On_Flag;
+//         }
+//     }  
+// }
+
+void lights(){
+	if( ( lightTime1H == rtc [2] ) && ( lightTime1M == rtc [1] ) && ( rtc [0] <= 4 ) ) {
+ 		digitalWrite(LIGHTS,HIGH); // Turn On Lights
+	  serialOutput ();
+	  Serial.println(" Lights On");
+	  printOutput();
+	   Lights_On_Flag = !Lights_On_Flag;
+   }
+  	if ( ( lightTime2H == rtc [2] ) && ( lightTime2M == rtc [1] && rtc [0] <= 4 ) ) { 
+	   digitalWrite(LIGHTS,LOW); //Turn Off Lights
+   	serialOutput ();
+   	Serial.println(" Lights Off");
+   	printOutput();
+   	Lights_On_Flag = !Lights_On_Flag;
+  	}
+
+	
+} 
+
+void initLights(){  // Need to work on this logic, not quite right yet
+  	if ( ( rtc [2] == lightTime1H && rtc [1] < lightTime1M ) || ( rtc [2] < lightTime1H )
+  		|| ( rtc [2] >= lightTime2H && rtc [1] > lightTime2M ) ) {
+	   digitalWrite(LIGHTS,LOW); //Turn Off Lights
+	   Serial.println (" initlights condition 1 is true");
+	   Lights_On_Flag = false;
+  	}
+	else if ( ( ( rtc [2] == lightTime2H  &&  rtc [1] > lightTime2M ) /*|| ( rtc [2] > lightTime2H )*/ ) ) {
+ 		digitalWrite(LIGHTS,LOW); // Turn Off Lights
+	   Serial.println (" initlights condition 2 is true");
+	   Lights_On_Flag = false;
+	}
+	else {
+	   digitalWrite(LIGHTS,HIGH); //Turn On Lights
+	   Serial.println (" initlights condition 1 & 2 are false");
+	   Lights_On_Flag = true;
+	}
+	
 }
 
 /*************************** END OF LIGHT CONTROL SCREEN ***************************/
@@ -1170,16 +1438,11 @@ void generalSettingsScreen () {
 
 	menuTemplate ();
 	tft.setTextSize( SMALL );
-	tft.setCursor ( 25, 36 );
-	tft.print (F( "Calendar Format" ));
-	tft.setCursor ( 25, 80 );
-	tft.print (F( "Time Format" ));
-	tft.setCursor ( 25, 111 );
-	tft.print (F( "Temperature Scale" ));
-	tft.setCursor ( 25, 142 );
-	tft.print (F( "Screensaver" ));
-	tft.setCursor ( 25, 173 );
-	tft.print (F( "Auto-Stop on Feed" ));
+	printTxt ( "Calendar Format", 25, 36 );
+	printTxt ( "Time Format", 25, 80 );
+	printTxt ( "Temperature Scale", 25, 111 );
+	printTxt ( "Screensaver", 25, 142 );
+	printTxt ( "Auto-Stop on feed", 25, 173 );
 
 	genSetSelect ();
 }
@@ -1209,8 +1472,7 @@ void autoFeederScreen () {
 			{
 		tft.fillRoundRect ( 5, 20, 150, 20, 20/8, ILI9341_RED );
 		tft.setCursor ( 34, 24);
-		tft.setTextSize ( SMALL );
-		tft.setTextColor ( ILI9341_WHITE );
+		setFont ( SMALL, ILI9341_WHITE );
 		tft.print (F( "Feeding Time 1" ));
 		tft.setTextColor (ILI9341_RED);
 		tft.setCursor ( 22, 52 );
@@ -1220,8 +1482,7 @@ void autoFeederScreen () {
 	}
 	else {	
 		tft.fillRoundRect ( 5, 20, 150, 20, 20/8, ILI9341_GREEN );
-		tft.setTextSize ( SMALL );
-		tft.setTextColor ( ILI9341_BLACK );
+		setFont ( SMALL, ILI9341_BLACK );
 		tft.setCursor ( 34, 24 );
 		tft.print (F( "Feeding Time 1" ));
 		timeDispH = feedFish1H;
@@ -1250,8 +1511,7 @@ void autoFeederScreen () {
 
 		tft.fillRoundRect ( 165, 20, 150, 20, 20/8, ILI9341_RED );
 		tft.setCursor ( 194, 24);
-		tft.setTextSize ( SMALL );
-		tft.setTextColor ( ILI9341_WHITE );
+		setFont ( SMALL, ILI9341_WHITE );
 		tft.print (F( "Feeding Time 2" ));
 		tft.setTextColor (ILI9341_RED);
 		tft.setCursor ( 182, 52 );
@@ -1261,8 +1521,7 @@ void autoFeederScreen () {
 	}
 	else {	
 		tft.fillRoundRect ( 165, 20, 150, 20, 20/8, ILI9341_GREEN );
-		tft.setTextSize ( SMALL );
-		tft.setTextColor ( ILI9341_BLACK );
+		setFont ( SMALL, ILI9341_BLACK );
 		tft.setCursor ( 194, 24 );
 		tft.print (F( "Feeding Time 2" ));
 		timeDispH = feedFish2H;
@@ -1292,8 +1551,7 @@ void autoFeederScreen () {
 			{
 		tft.fillRoundRect ( 5, 168, 150, 20, 20/8,ILI9341_RED );
 		tft.setCursor ( 34, 172 );
-		tft.setTextSize ( SMALL );
-		tft.setTextColor ( ILI9341_WHITE );
+		setFont ( SMALL, ILI9341_WHITE );
 		tft.print (F( "Feeding Time 3" ));
 		tft.setTextColor ( ILI9341_RED );
 		tft.setCursor ( 22, 133 );
@@ -1303,8 +1561,7 @@ void autoFeederScreen () {
 	}
 	else {	
 		tft.fillRoundRect ( 5, 168, 150, 20, 20/8, ILI9341_GREEN );
-		tft.setTextSize ( SMALL );
-		tft.setTextColor ( ILI9341_BLACK );
+		setFont ( SMALL, ILI9341_BLACK );
 		tft.setCursor ( 24, 172 );
 		tft.print (F( "Feeding Time 3" ));
 		timeDispH = feedFish3H;
@@ -1333,8 +1590,7 @@ void autoFeederScreen () {
 			{
 		tft.fillRoundRect ( 165, 168, 150, 20, 20/8, ILI9341_RED );
 		tft.setCursor ( 194, 172 );
-		tft.setTextSize ( SMALL );
-		tft.setTextColor ( ILI9341_WHITE );
+		setFont ( SMALL, ILI9341_WHITE );
 		tft.print (F( "Feeding Time 4" ));
 		tft.setTextColor ( ILI9341_RED );
 		tft.setCursor ( 182, 133 );
@@ -1344,8 +1600,7 @@ void autoFeederScreen () {
 	}
 	else {	
 		tft.fillRoundRect ( 165, 168, 150, 20, 20/8, ILI9341_GREEN );
-		tft.setTextSize ( SMALL );
-		tft.setTextColor ( ILI9341_BLACK );
+		setFont ( SMALL, ILI9341_BLACK );
 		tft.setCursor ( 194, 172 );
 		tft.print (F( "Feeding Time 4" ));
 		timeDispH = feedFish4H;
@@ -1378,60 +1633,86 @@ void autoFeederScreen () {
 }
 
 void feedingTimeOutput () {
-	if ( ( FEEDTime1 == 1 ) && ( feedFish1H == rtc [2] ) && ( feedFish1M == rtc [1] ) && ( rtc [0] <= 5 ) ) {
+	if ( ( FEEDTime1 == 1 ) && ( feedFish1H == rtc [2] ) && ( feedFish1M == rtc [1] ) && ( rtc [0] <= 4 ) ) {
+			tenSecTimer = 0;
+			feederMotorRunning = true;		
 		if ( setAutoStop == 1 ) {  
 			fiveTillBackOn1 = 0;
 			waterfilterStopped = true;
 			digitalWrite(WATER_FILTER_OFF,LOW); // Turn off water filter
+			digitalWrite(A5, HIGH);
+			serialOutput ();
+			Serial.print ( "Feeding time 1 ");
+			Serial.println ( ", Water filter Off");
+			Serial.println ( " Feeder Motor Running");
 		}
 		digitalWrite ( A5, LOW ); // Turn on feeder
-
-//		delay ( 10000 );
-//		RTC.get ( rtc, true );
-//		digitalWrite ( A5, HIGH );
+	}
+	if (feederMotorRunning == true ) {
+		tenSecTimer++;
+		if ( tenSecTimer > 2 ) {
+			feederMotorRunning = false;
+			RTC.get (rtc, true );
+			digitalWrite( A5, LOW ); //Turn off feeder
+			serialOutput ();
+			Serial.println ( "Feeder Motor Off");
+			printOutput();
+		}
 	}
 	if ( waterfilterStopped == true ) {
 		fiveTillBackOn1++;
-		if ( fiveTillBackOn1 > 60 )                       //60 is 5 minutes (60/12=5)
-				{
-	//		waveMakerOff = false;
+		if ( fiveTillBackOn1 > 60 ) {                       //60 is 5 minutes (60/12=5)
 			waterfilterStopped = false;
 			digitalWrite(WATER_FILTER_OFF,HIGH); // Turn oN water filter
+			serialOutput ();
+			Serial.println ( ", Water filter On");
+			printOutput();
 		}
 	}
-
 	if ( ( FEEDTime2 == 1 ) && ( feedFish2H == rtc [2] ) && ( feedFish2M == rtc [1] ) && ( rtc [0] <= 5 ) ) {
+		tenSecTimer = 0;
 		if ( setAutoStop == 1 ) {  
 			fiveTillBackOn1 = 0;
 			waterfilterStopped = true;
+			serialOutput ();
+			Serial.print ( "Feeding time 2 ");
+			Serial.println ( ", Water filter Off");
 			digitalWrite(WATER_FILTER_OFF,LOW); // Turn off water filter
 		}
 		digitalWrite ( A5, LOW ); // Turn on feeder
-
-//		delay ( 10000 );
-//		RTC.get ( rtc, true );
-//		digitalWrite ( A5, HIGH );
+		printOutput();
+	}
+	if (feederMotorRunning == true ) {
+		tenSecTimer++;
+		if ( tenSecTimer > 10 ) {
+			feederMotorRunning = false;
+			RTC.get (rtc, true );
+			digitalWrite( A5, HIGH ); //Turn off feeder
+			serialOutput ();
+			printOutput();
+		}
 	}
 	if ( waterfilterStopped == true ) {
 		fiveTillBackOn1++;
 		if ( fiveTillBackOn1 > 60 )                       //60 is 5 minutes (60/12=5)
 				{
-	//		waveMakerOff = false;
 			waterfilterStopped = false;
 			digitalWrite(WATER_FILTER_OFF,HIGH); // Turn oN water filter
+			serialOutput ();
+			Serial.println ( ", Water filter On");
 		}
-	
 	}
 }
 
 /***** SET AUTOMATIC FEEDER TIMES SCREEN ********** dispScreen = 14 *******************/
 void setFeederTimesScreen ( boolean refreshAll = true ) {
-	
-	menuTemplate ();
 
+	menuTemplate();	
 	if ( refreshAll ) {
 		for ( int i = 0; i < 7; i++ ) {
 			rtcSet [i] = rtc [i];
+			rtcSet2 [i] = rtc [i];
+
 		}
 		feedingTimeOnOff ();
 
@@ -1456,6 +1737,29 @@ void setFeederTimesScreen ( boolean refreshAll = true ) {
 /************** MAINTENANCE SCREEN ****************** dispScreen = 15 ***********************/
 void AboutScreen () {
 	menuTemplate ();
+	setFont ( SMALL, ILI9341_WHITE );
+	tft.setCursor ( 25, 25 );
+	tft.print (F( " Item                  Days           Alarm" ) );
+	tft.setCursor ( 20, ( day1D [1] + 8 ) );
+	tft.print (F( "Water Change" ) );
+	tft.setCursor ( 20, ( day2D [1] + 8 ) );
+	tft.print (F( "Filter #1" ) );
+	tft.setCursor ( 20, ( day3D [1] + 8 ) );
+	tft.print (F( "Filter #2" ) );
+	tft.setCursor ( 20, ( day4D [1] + 8 ) );
+	tft.print (F( "Filter #3" ) );
+		printButton ( "-", day1D [0], day1D [1], day1D [2], day1D [3], true );     
+		printButton ( "+", day1U [0], day1U [1], day1U [2], day1U [3], true );     
+		printButton ( "-", day2D [0], day2D [1], day2D [2], day2D [3], true );     
+		printButton ( "+", day2U [0], day2U [1],day2U [2], day2U [3], true );      
+		printButton ( "-", day3D [0], day3D [1], day3D [2], day3D [3], true );     
+		printButton ( "+", day3U [0], day3U [1], day3U [2], day3U [3], true );     
+		printButton ( "-", day4D [0], day4D [1], day4D [2], day4D [3], true );     
+		printButton ( "+", day4U [0], day4U [1], day4U [2], day4U [3], true );   
+		printButton ( "Reset", day1R [0], day1R [1], day1R [2], day1R [3], true);
+		printButton ( "Reset", day2R [0], day2R [1], day2R [2], day2R [3], true);
+		printButton ( "Reset", day3R [0], day3R [1], day3R [2], day3R [3], true);
+		printButton ( "Reset", day4R [0], day4R [1], day4R [2], day4R [3], true);
 }
 
 /************************************ TOUCH SCREEN ************************************/
@@ -1464,20 +1768,11 @@ void processMyTouch () {
 
 	x1 = p.x;
 	y1 = p.y;
-	// Print out raw data from screen touch controller
- // Serial.print("X = "); Serial.print(p.x);
- // Serial.print("\tY = "); Serial.print(p.y);
- // Serial.print(" -> ");
 		// flip it around to match the screen.
 	p.x = map(y1, 0, 320, 0, 320);
 	p.y = map(x1, 0, 240, 240, 0);
 	x = p.x;
 	y = p.y;
-	// Print out the remapped (rotated) coordinates
- // Serial.print("("); Serial.print(p.x);
- // Serial.print(", "); Serial.print(p.y);
- // Serial.println(")");
-
 
 	returnTimer = 0;
 	screenSaverTimer = 0;
@@ -1515,14 +1810,14 @@ void processMyTouch () {
 					if ( ( y >= tanD [1] ) && ( y <= ( tanD [1] + tanD [3] ) ) )                   //press Date & Clock Screen
 					{
 						waitForIt ( tanD [0], tanD [1], tanD [2], tanD [3] );
-						if ( ( timeDispH >= 0 ) && ( timeDispH <= 11 ) ) 
-						{
-							AM_PM = 1;
-						}
-						else 
-						{
-							AM_PM = 2;
-						}
+						// if ( ( timeDispH >= 0 ) && ( timeDispH <= 11 ) ) 
+						// {
+							// AM_PM = 1;
+						// }
+						// else 
+						// {
+							// AM_PM = 2;
+						// }
 						dispScreen = 2;
 						clearScreen ();
 						clockScreen ();
@@ -1553,13 +1848,13 @@ void processMyTouch () {
 						clearScreen ();
 						autoFeederScreen ();
 					}
-					if ( ( y >= about [1] ) && ( y <= ( about [1] + about [3] ) ) )              //press About sketch
-					{
-						waitForIt ( about [0], about [1], about [2], about [3] );
-						dispScreen = 15;
-						clearScreen ();
-						AboutScreen ();
-					}
+					// if ( ( y >= maint [1] ) && ( y <= ( maint [1] + maint [3] ) ) )              //press About sketch
+					// {
+						// waitForIt ( maint [0], maint [1], maint [2], maint [3] );
+						// dispScreen = 15;
+						// clearScreen ();
+						// AboutScreen ();
+					// }
 					if ( ( y >= liteS [1] ) && ( y <= ( liteS [1] + liteS [3] ) ) )              //press About sketch
 					{
 						waitForIt ( liteS [0], liteS [1], liteS [2], liteS [3] );
@@ -1570,7 +1865,7 @@ void processMyTouch () {
 				}		
 				break;
 			case 2  :     //--------------- CLOCK & DATE SETUP SCREEN -----------------
-					if ( ( x >= prSAVE [0] ) && ( x <= ( prSAVE [0] + prSAVE [2] ) ) && ( y >= prSAVE [1] ) && ( y <= (prSAVE [1] + prSAVE [3] ) ) )  //press SAVE
+				if ( ( x >= prSAVE [0] ) && ( x <= ( prSAVE [0] + prSAVE [2] ) ) && ( y >= prSAVE [1] ) && ( y <= (prSAVE [1] + prSAVE [3] ) ) )  //press SAVE
 						{
 					waitForIt ( prSAVE [0], prSAVE [1], prSAVE [2], prSAVE [3] );
 					if ( setTimeFormat == 1 ) {
@@ -1584,7 +1879,7 @@ void processMyTouch () {
 							rtcSet [2] -= 12;
 						}
 					}
-					// SaveRTC ();
+					SaveRTC ();
 					dispScreen = 0;
 					clearScreen ();
 					mainScreen ( true );
@@ -1835,76 +2130,86 @@ void processMyTouch () {
 				if ( ( x >= prSAVE [0] ) && ( x <= ( prSAVE [0] + prSAVE [2] ) ) && ( y >= prSAVE [1] ) && ( y <= ( prSAVE [1] + prSAVE [3] ) ) )  //press SAVE
 				{
 					waitForIt ( prSAVE [0], prSAVE [1], prSAVE [2], prSAVE [3] );
-					// SaveGenSetsToEEPROM ();
-					dispScreen = MENUSCREEN_ONE;
+					lightTime1H = timeDispH;
+					lightTime1M = timeDispM;
+					lightTime2H = timeDispH1;
+					lightTime2M = timeDispM1;
+
+					SaveLightTimesToEEPROM ();
+					dispScreen = 1;
 					clearScreen ();
-					menuScreen ();
+					mainScreen ( true );
 				}		
-				else if ( ( y >= hou1U [1] ) && ( y <= ( hou1U [1] + hou1U [3] ) ) ) {                   //FIRST ROW
-					if ( ( x >= hou1U [0] ) && ( x <= ( hou1U [0] + hou1U [2] ) ) ){                //press hour up
-						waitForIt ( hou1U [0], hou1U [1], hou1U [2], hou1U [3] );
-						rtcSet [2]++;
-						if ( rtcSet [2] >= 24 ) {
-							rtcSet [2] = 0;
+				else 
+				{
+					if ( ( y >= hou1U [1] ) && ( y <= ( hou1U [1] + hou1U [3] ) ) ) 
+					{                   //FIRST ROW
+						if ( ( x >= hou1U [0] ) && ( x <= ( hou1U [0] + hou1U [2] ) ) )
+						{                //press hour up
+							waitForIt ( hou1U [0], hou1U [1], hou1U [2], hou1U [3] );
+							rtcSet [2]++;
+							if ( rtcSet [2] >= 24 ) {
+								rtcSet [2] = 0;
+							}
+						}
+						if ( ( x >= min1U [0] ) && ( x <= ( min1U [0] + min1U [2] ) ) ) {                //press min up
+							waitForIt ( min1U [0], min1U [1], min1U [2], min1U [3] );
+							rtcSet [1]++;
+							if ( rtcSet [1] >= 60 ) {
+								rtcSet [1] = 0;
+							}
+						}
+					}	
+					if ( ( y >= hou1D [1] ) && ( y <= ( hou1D [1] + hou1D [3] ) ) ) {                   //SECOND ROW
+						if ( ( x >= hou1D [0] ) && ( x <= ( hou1D [0] + hou1D [2] ) ) ) {                //press hour down
+							waitForIt ( hou1D [0], hou1D [1], hou1D [2], hou1D [3] );
+							rtcSet [2]--;
+							if ( rtcSet [2] < 0 ) {
+								rtcSet [2] = 23;
+							}
+						}
+						if ( ( x >= min1D [0] ) && ( x <= ( min1D [0] + min1D [2] ) ) ) {                //press min down
+							waitForIt ( min1D [0], min1D [1], min1D [2], min1D [3] );
+							rtcSet [1]--;
+							if ( rtcSet [1] < 0 ) {
+								rtcSet [1] = 59;
+							}
 						}
 					}
-					if ( ( x >= min1U [0] ) && ( x <= ( min1U [0] + min1U [2] ) ) ) {                //press min up
-						waitForIt ( min1U [0], min1U [1], min1U [2], min1U [3] );
-						rtcSet [1]++;
-						if ( rtcSet [1] >= 60 ) {
-							rtcSet [1] = 0;
+					if ( ( y >= hou2U [1] ) && ( y <= ( hou2U [1] + hou2U [3] ) ) ) {                   //FIRST ROW
+						if ( ( x >= hou2U [0] ) && ( x <= ( hou2U [0] + hou2U [2] ) ) ){                //press hour up
+							waitForIt ( hou2U [0], hou2U [1], hou2U [2], hou2U [3] );
+							rtcSet2 [2]++;
+							if ( rtcSet2 [2] >= 24 ) {
+								rtcSet2 [2] = 0;
+							}
+						}
+						if ( ( x >= min2U [0] ) && ( x <= ( min2U [0] + min2U [2] ) ) ) {                //press min up
+							waitForIt ( min2U [0], min2U [1], min2U [2], min1U [3] );
+							rtcSet2 [1]++;
+							if ( rtcSet2 [1] >= 60 ) {
+								rtcSet2 [1] = 0;
+							}
 						}
 					}
-				}	
-				else if ( ( y >= hou1D [1] ) && ( y <= ( hou1D [1] + hou1D [3] ) ) ) {                   //SECOND ROW
-					if ( ( x >= hou1D [0] ) && ( x <= ( hou1D [0] + hou1D [2] ) ) ) {                //press hour down
-						waitForIt ( hou1D [0], hou1D [1], hou1D [2], hou1D [3] );
-						rtcSet [2]--;
-						if ( rtcSet [2] < 0 ) {
-							rtcSet [2] = 23;
+					if ( ( y >= hou2D [1] ) && ( y <= ( hou2D [1] + hou2D [3] ) ) ) {                   //SECOND ROW
+						if ( ( x >= hou2D [0] ) && ( x <= ( hou2D [0] + hou2D [2] ) ) ) {                //press hour down
+							waitForIt ( hou2D [0], hou2D [1], hou2D [2], hou1D [3] );
+							rtcSet2 [2]--;
+							if ( rtcSet2 [2] < 0 ) {
+								rtcSet2 [2] = 23;
+							}
+						}
+						if ( ( x >= min2D [0] ) && ( x <= ( min2D [0] + min2D [2] ) ) ) {                //press min down
+							waitForIt ( min2D [0], min2D [1], min2D [2], min2D [3] );
+							rtcSet2 [1]--;
+							if ( rtcSet2 [1] < 0 ) {
+								rtcSet2 [1] = 59;
+							}
 						}
 					}
-					if ( ( x >= min1D [0] ) && ( x <= ( min1D [0] + min1D [2] ) ) ) {                //press min down
-						waitForIt ( min1D [0], min1D [1], min1D [2], min1D [3] );
-						rtcSet [1]--;
-						if ( rtcSet [1] < 0 ) {
-							rtcSet [1] = 59;
-						}
-					}
+					LightControlScreen ( false );
 				}
-				else if ( ( y >= hou2U [1] ) && ( y <= ( hou2U [1] + hou2U [3] ) ) ) {                   //FIRST ROW
-					if ( ( x >= hou2U [0] ) && ( x <= ( hou2U [0] + hou2U [2] ) ) ){                //press hour up
-						waitForIt ( hou2U [0], hou2U [1], hou2U [2], hou2U [3] );
-						rtcSet [2]++;
-						if ( rtcSet [2] >= 24 ) {
-							rtcSet [2] = 0;
-						}
-					}
-					if ( ( x >= min2U [0] ) && ( x <= ( min2U [0] + min2U [2] ) ) ) {                //press min up
-						waitForIt ( min2U [0], min2U [1], min2U [2], min1U [3] );
-						rtcSet [1]++;
-						if ( rtcSet [1] >= 60 ) {
-							rtcSet [1] = 0;
-						}
-					}
-				}	
-				else if ( ( y >= hou2D [1] ) && ( y <= ( hou2D [1] + hou2D [3] ) ) ) {                   //SECOND ROW
-					if ( ( x >= hou2D [0] ) && ( x <= ( hou2D [0] + hou2D [2] ) ) ) {                //press hour down
-						waitForIt ( hou2D [0], hou2D [1], hou2D [2], hou1D [3] );
-						rtcSet [2]--;
-						if ( rtcSet [2] < 0 ) {
-							rtcSet [2] = 23;
-						}
-					}
-					if ( ( x >= min2D [0] ) && ( x <= ( min2D [0] + min2D [2] ) ) ) {                //press min down
-						waitForIt ( min2D [0], min2D [1], min2D [2], min2D [3] );
-						rtcSet [1]--;
-						if ( rtcSet [1] < 0 ) {
-							rtcSet [1] = 59;
-						}
-					}
-				}
-				LightControlScreen ();
 				break;
 			case 5  : 
 				break;
@@ -2039,15 +2344,18 @@ void processMyTouch () {
 					tft.fillRoundRect ( 85, 94, 150, 20, 20/8, ILI9341_GREEN );
 					tft.drawRoundRect ( 85, 94, 150, 20, 20/8, ILI9341_WHITE );
 					tft.setTextColor ( ILI9341_BLACK );
-					tft.setCursor ( 120, 100 );
-					tft.print ( "Now Feeding" );
-//					digitalWrite ( autoFeeder, HIGH );
+					printTxt ( "Now Feeding", 120, 100 );
+					digitalWrite ( A5, HIGH );
+					// tft.drawBitmap ( 0 , 0, "purple.bmp", 240, 320, 1);
+					printOutput();
+					Serial.println( "Now Feeding Button Pushed");
 					delay ( 5000 );
 					tft.fillRoundRect ( 85, 94, 150, 20, 20/8, 	0x980C );
 					tft.drawRoundRect ( 85, 94, 150, 20, 20/8, 	0x980C );
 					tft.setTextColor ( ILI9341_WHITE );
-					tft.setCursor ( 120, 100 );
-					tft.print ( "Feed Fish Now!" );
+					printTxt ( "Feed Fish Now!", 120, 100 );
+					digitalWrite ( A5, LOW );
+					printOutput();
 				}
 				break;				
 
@@ -2207,31 +2515,107 @@ void processMyTouch () {
 					setFeederTimesScreen ( false );
 				}
 				break;
+			case 15 :  //----------------Maintenance Menu -----------------------
+				if ( ( x >= prSAVE [0] ) && ( x <= ( prSAVE [0] + prSAVE [2] ) ) && ( y >= prSAVE [1] ) && ( y <= ( prSAVE [1] + prSAVE [3] ) ) )  //press SAVE
+						{
+					waitForIt ( prSAVE [0], prSAVE [1], prSAVE [2], prSAVE [3] );
+					clearScreen ();
+					mainScreen ();
+				}
 
 
+				// else	{
+					// if ( ( x >= day1D [0] ) && ( x <= ( day1D [0] + day1D [2] ) ) )                         //first column
+					// 		{
+					// 	if ( ( y >= day1D [1] ) && ( y <= ( day1D [1] + day1D [3] ) ) )                      //press temp minus
+					// 			{
+					// 		waitForIt ( day1D [0], day1D [1], day1D [2], day1D [3] );
+					// 	}
+					// 	if ( ( y >= day2D [1] ) && ( y <= ( day2D [1] + day2D [3] ) ) )                      //press temp minus
+					// 			{
+					// 		waitForIt ( day2D [0], day2D [1], day2D [2], day2D [3] );	
+					// 	}
+					// 	if ( ( y >= day3D [1] ) && ( y <= ( day3D [1] + day3D [3] ) ) )                      //press temp minus
+					// 			{
+					// 		waitForIt ( day3D [0], day3D [1], day3D [2], day3D [3] );	
+					// 	}
+					// 	if ( ( y >= day4D [1] ) && ( y <= ( day4D [1] + day4D [3] ) ) )                      //press temp minus
+					// 			{
+					// 		waitForIt ( day4D [0], day4D [1], day4D [2], day4D [3] );	
+					// 	}
+					// }	
+					// if ( ( x >= day1U [0] ) && ( x <= ( day1U [0] + day1U [2] ) ) )                         //first column
+					// 		{
+					// 	if ( ( y >= day1U [1] ) && ( y <= ( day1U [1] + day1U [3] ) ) )                      //press temp minus
+					// 			{
+					// 		waitForIt ( day1U [0], day1U [1], day1U [2], day1U [3] );
+					// 	}
+					// 	if ( ( y >= day2U [1] ) && ( y <= ( day2U [1] + day2U [3] ) ) )                      //press temp minus
+					// 			{
+					// 		waitForIt ( day2U [0], day2U [1], day2U [2], day2U [3] );	
+					// 	}
+					// 	if ( ( y >= day3U [1] ) && ( y <= ( day3U [1] + day3U [3] ) ) )                      //press temp minus
+					// 			{
+					// 		waitForIt ( day3U [0], day3U [1], day3U [2], day3U [3] );	
+					// 	}
+					// 	if ( ( y >= day4U [1] ) && ( y <= ( day4U [1] + day4U [3] ) ) )                      //press temp minus
+					// 			{
+					// 		waitForIt ( day4U [0], day4U [1], day4U [2], day4U [3] );	
+					// 	}
+					// }	
+					// if ( ( x >= day1R [0] ) && ( x <= ( day1R [0] + day1R [2] ) ) )                         //first column
+					// 		{
+					// 	if ( ( y >= day1R [1] ) && ( y <= ( day1R [1] + day1R [3] ) ) )                      //press temp minus
+					// 			{
+					// 		waitForIt ( day1R [0], day1R [1], day1R [2], day1R [3] );
+					// 	}
+					// 	if ( ( y >= day2R [1] ) && ( y <= ( day2R [1] + day2R [3] ) ) )                      //press temp minus
+					// 			{
+					// 		waitForIt ( day2R [0], day2R [1], day2R [2], day2R [3] );	
+					// 	}
+					// 	if ( ( y >= day3R [1] ) && ( y <= ( day3R [1] + day3R [3] ) ) )                      //press temp minus
+					// 			{
+					// 		waitForIt ( day3R [0], day3R [1], day3R [2], day3R [3] );	
+					// 	}
+					// 	if ( ( y >= day4R [1] ) && ( y <= ( day4R [1] + day4R [3] ) ) )                      //press temp minus
+					// 			{
+					// 		waitForIt ( day4R [0], day4R [1], day4R [2], day4R [3] );	
+					// 	}
+					// }	
+				// }
 		}
 	}	
 }
 
-
-///////////////////////////////////////////////////////////////////////////////////////
-///////                         Setup                                     ////////////
-///////////////////////////////////////////////////////////////////////////////////////
+/************************************* Setup *****************************************/   
 void setup() {
 	Serial.begin(9600);
+	pinMode (A5, OUTPUT); // Feeder Motor 
+	digitalWrite(A5, LOW);
+	pinMode (A11, OUTPUT); //setup arduino to power RTC from analog pins (NEED TO MOVE POWER OFF OF THIS PIN)
+   digitalWrite(A11, HIGH);
+   pinMode(A10, OUTPUT); //setup arduino to power RTC from analog pins (NEED TO MOVE POEW OFF OF THIS PIN)
+   digitalWrite(A10, LOW);
+   pinMode ( A14, OUTPUT );
+   digitalWrite( A14, HIGH );
+   pinMode( A13, OUTPUT );
+   digitalWrite( A13, LOW );
+	RTC.get(rtc, true);
 	tft.begin();
-	tft.setRotation(rotation);
+	tft.setRotation( ROTATION );
 	if (! ctp.begin(40)) {  // pass in 'sensitivity' coefficient
-    Serial.println(F(" T6206 ERROR"));
-    // Serial.println(F("Couldn't start FT6206 touchscreen controller"));
-    while (1);
-  }
+   	Serial.println(F(" T6206 ERROR"));
+   	while (1);
+  	}
   	ReadFromEEPROM ();
-  dispScreen = 1;
+   initLights();
+ 	dispScreen = 1;
 	mainScreen( true );
 }
 
+/******************************** End of Setup ****************************************/
 
+/********************************  Main Loop ******************************************/
 void loop(){
 	if ( ( ctp.touched () ) && ( screenSaverTimer >= setScreenSaverTimer ) ) {
 		screenSaverTimer = 0;
@@ -2241,22 +2625,26 @@ void loop(){
 		dispScreen = 0;
 	}
 	else {
-		if ( ctp.touched () ) {
-			processMyTouch ();
+		if ( ctp.touched() ) {
+			processMyTouch();
 		}
 	}
+	
+
 	unsigned long currentMillis = millis ();
 	if ( currentMillis - previousMillisFive > 5000 )   //check time, temp and LED levels every 5s
 			{
 		previousMillisFive = currentMillis;
-
+		RTC.get (rtc, true );
 		feedingTimeOutput ();
-
 		if ( screenSaverTimer < setScreenSaverTimer ) {
 			TimeDateBar ();
 		}
-//		screenReturn ();
+		checkTempC();
+		lights();
+		screenReturn ();
 		screenSaver ();
+		// printOutput();
 
 		if ( ( dispScreen == 0 ) && ( screenSaverTimer < setScreenSaverTimer ) ) {
 			mainScreen ();
@@ -2264,3 +2652,36 @@ void loop(){
 	}		
 }	
 
+/***************************  End of Main Loop ****************************************/
+void printOutput(){
+	// serialOutput();
+	Serial.print ( "Display Screen = " ); Serial.println ( dispScreen );
+	if ( digitalRead (LIGHTS ) == 0 ){
+		Serial.println ( "Tank Lights Off");
+	}
+	if ( digitalRead (LIGHTS ) == 1 ){
+		Serial.println ( "Tank Lights On" );
+	}
+	if ( digitalRead ( A5 ) == 1 ){
+		Serial.println ( "Feeder is On");
+	}
+	if ( digitalRead ( A5 ) == 0 ){
+		Serial.println ( "Feeder is Off");
+	}
+}
+void serialOutput(){
+  // digital clock display of the time
+  Serial.print(rtc [2]);
+  printDigits(rtc [1]);
+  printDigits(rtc [0]);
+  Serial.print(" ");
+  
+}
+
+void printDigits(int digits){
+  // utility function for digital clock display: prints preceding colon and leading 0
+  Serial.print(":");
+  if(digits < 10)
+    Serial.print('0');
+  Serial.print(digits);
+}
