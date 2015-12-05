@@ -99,7 +99,6 @@ int lightTime1H, lightTime1M, lightTime1S,
     lightTime2H, lightTime2M, lightTime2S;
 int lightTime;
 
-int maint1D, maint2D, maint3D, maint4D;
 
 boolean Lights_On_Flag = false;
 
@@ -134,12 +133,18 @@ int light_num = 0;
 int light_on_time[3] = {0,0,0};
 int lighttimes[NUM_LIGHTS][3] = {{ lightTime1H, lightTime1M, lightTime1S}, 
                                  { lightTime2H, lightTime2M, lightTime2S}};
+int doyC = 0;
+int daym, monthm, yearm;
+int doy1C, doy2C, doy3C, doy4C;
+int maint1D, maint2D, maint3D, maint4D;
+
+
 boolean waterfilterStopped = false; 
 boolean feederMotorRunning = false;
-boolean alarm1 = true;				
-boolean alarm2 = true;
-boolean alarm3 = true;
-boolean alarm4 = true;
+boolean alarm1 = false;				
+boolean alarm2 = false;
+boolean alarm3 = false;
+boolean alarm4 = false;
 boolean tempAlarmflag = 0;
 boolean CLOCK_SCREENSAVER = true; //For a Clock Screensaver "true" / Blank Screen "false"
 											 //You can turn the Screensaver ON/OFF in the pogram
@@ -190,7 +195,7 @@ const int offM [] = { 90, 99, 25, 25 }; //offset minus
 const int offP [] = { 205, 99, 25, 25 }; //offset plus
 const int almM [] = { 90, 149, 25, 25 }; //alarm minus
 const int almP [] = { 205, 149, 25, 25 }; //alarm plus
-/**************************** LIGHT CONTROL MENU BUTTONS *******************************/
+/**************************** LIGHT CONTROL MENU BUTTONS *****************************/
 const int hou1U [] = { 110, 25, 25, 25 }; //Light On hour up
 const int min1U [] = { 180, 25, 25, 25 }; //Light On min up
 // const int ampm1U [] = { 265, 25, 25, 25 }; //Light On AM/PM up
@@ -203,7 +208,7 @@ const int min2U [] = { 180, 112, 25, 25 }; //Light Off min up
 const int hou2D [] = { 110, 162, 25, 25 }; //Light Off hour down
 const int min2D [] = { 180, 162, 25, 25 }; //Light Off min down
 // const int ampm2D [] = { 265, 162, 25, 25 }; //Light Off AM/PM down
-/*************************** Maintenacne Menu Buttons *************************************/
+/*************************** Maintenacne Menu Buttons ********************************/
 const int day1D [] = {120, 39, 25, 25 }; 		
 const int day2D [] = {120, 79, 25, 25 };
 const int day3D [] = {120, 119, 25, 25 };
@@ -216,7 +221,7 @@ const int day1R [] = {250, 39, 40, 25 };
 const int day2R [] = {250, 79, 40, 25 };
 const int day3R [] = {250, 119, 40, 25 };
 const int day4R [] = {250, 159, 40, 25 };
-/*********************************** MISCELLANEOUS BUTTONS *********************************/
+/*********************************** MISCELLANEOUS BUTTONS ***************************/
 const int back [] = { 5, 200, 100, 25 }; //BACK
 const int prSAVE [] = { 110, 200, 100, 25 }; //SAVE or NEXT
 const int canC [] = {215 , 200, 100, 25 }; //CANCEL
@@ -234,7 +239,8 @@ const int mdis1 [] = { 30, 150};
 const int mdis2 [] = { 30, 160};
 const int mdis3 [] = { 30, 170};
 const int mdis4 [] = { 30, 180};
-/********************************* EEPROM FUNCTIONS ***********************************/
+// const int maint [] = { 165, 110, 120, 35 }; //"Maintenance Settings" program information
+/********************************* EEPROM FUNCTIONS **********************************/
 //TODO: Add EEPROM functions to Maint Screen Days
 struct config_t 
 {
@@ -289,6 +295,14 @@ struct config_m
 	int maint4d;
 } MAINTsettings; //Maintenance task days 
 
+struct config_doy //Day of Year Start Date for maint task
+{
+	int doy1c;
+	int doy2c;
+	int doy3c;
+	int doy4c;
+} DOYsettings; //Maintenance DOY settings
+
 void SaveTempToEEPROM () 
 {
 	tempSettings.tempset = int ( setTempC * 10 );
@@ -337,6 +351,7 @@ void SaveFeedTimesToEEPROM ()
 	FEEDERsettings.feedTime4 = int ( FEEDTime4 );
 	EEPROM_writeAnything ( 680, FEEDERsettings );
 }
+
 void SaveMaintDaysToEEPROM ()
 {
 	MAINTsettings.maint1d = int ( maint1D );
@@ -344,7 +359,14 @@ void SaveMaintDaysToEEPROM ()
 	MAINTsettings.maint3d = int ( maint3D );
 	MAINTsettings.maint4d = int ( maint4D );
 	EEPROM_writeAnything ( 710, MAINTsettings );
-
+}
+void SaveDoyToEEPROM ()
+{
+	DOYsettings.doy1c = int ( doy1C );
+	DOYsettings.doy2c = int ( doy2C );
+	DOYsettings.doy3c = int ( doy3C );
+	DOYsettings.doy4c = int ( doy4C );
+	EEPROM_writeAnything ( 720, DOYsettings );
 }
 void ReadFromEEPROM () 
 {
@@ -399,9 +421,15 @@ EEPROM_readAnything ( 640, tempSettings );
 	maint2D = MAINTsettings.maint2d;
 	maint3D = MAINTsettings.maint3d;
 	maint4D = MAINTsettings.maint4d;
+
+	EEPROM_readAnything ( 720, DOYsettings );
+	doy1C = DOYsettings.doy1c;
+	doy2C = DOYsettings.doy2c;
+	doy3C = DOYsettings.doy3c;
+	doy4C = DOYsettings.doy4c;
 }
 
-/********************************** RTC FUNCTIONS *************************************/
+/********************************** RTC FUNCTIONS ************************************/
 void SaveRTC () 
 {
 	int year = rtcSet [6] - 2000;
@@ -417,7 +445,7 @@ void SaveRTC ()
 	delay ( 10 );
 }
 
-/********************************** TIME AND DATE BAR **********************************/
+/********************************** TIME AND DATE BAR ********************************/
 void TimeDateBar ( boolean refreshAll = false ) 
 {
 	char oldVal [16], minute1 [3], hour1 [3], ampm [6], month1 [5];
@@ -469,10 +497,9 @@ void TimeDateBar ( boolean refreshAll = false )
 	{
 		tft.fillRoundRect ( 215, 227, 60, 10, 10/8, ILI9341_BLACK);
 		tft.setTextColor ( ILI9341_YELLOW );
-		tft.setCursor ( 215, 227 );
-		tft.print ( time );  //Display time
-	}//Convert the month to its name
-	if ( rtc [5] == 1 ) { sprintf ( month1, "JAN " ); }            
+		tft.setCursor ( 215, 227 ); tft.print ( time ); //Display time
+	}
+	if ( rtc [5] == 1 ) { sprintf ( month1, "JAN " ); } //Convert the month to its name            
 	if ( rtc [5] == 2 ) { sprintf ( month1, "FEB " ); }
 	if ( rtc [5] == 3 ) { sprintf ( month1, "MAR " ); }
 	if ( rtc [5] == 4 ) { sprintf ( month1, "APR " ); }
@@ -555,6 +582,7 @@ void maintAlarm()
 /*********************** MAIN SCREEN ********** dispScreen = 0 ************************/
 void mainScreen( boolean refreshAll = false ) 
 {
+	doyC = calculateDayOfYear(rtc [4],rtc [5],rtc [6]); 
 	Serial.println("mainScreen Routine Running");
 	if ( dispScreen != 0)
 	{
@@ -574,7 +602,11 @@ void mainScreen( boolean refreshAll = false )
 	updateScreen ();
 	setFont ( SMALL, ILI9341_RED );
 	printTxt ( "MONITORS & ALERTS", 110, 128 );
-		
+
+	if (doy1C <= doyC) { alarm1 = true; } else { alarm1 = false; }
+	if (doy2C <= doyC) { alarm2 = true; } else { alarm2 = false; }
+	if (doy3C <= doyC) { alarm3 = true; } else { alarm3 = false; }
+	if (doy4C <= doyC) { alarm4 = true; } else { alarm4 = false; }
 	if ( ( alarm1 == 1 ) && ( alarm2 == 0 ) && (alarm3 == 0 ) & ( alarm4 == 0 ) ) 
 	{
 		// alarm 1
@@ -823,34 +855,20 @@ void waitForIt ( int x1, int y1, int x2, int y2 ) // Draw a red frame while a bu
 }
 void feedingTimeOnOff () 
 {
-	if ( feedTime == 1 )
-	{
-		FEEDTime = FEEDTime1;
-	}
-	if (feedTime == 2 )
-	{
-		FEEDTime = FEEDTime2;
-	}
-	if (feedTime == 3 )
-	{
-		FEEDTime = FEEDTime3;
-	}
-	if (feedTime == 4 )
-	{
-		FEEDTime = FEEDTime4;
-	}
+	if ( feedTime == 1 ) { FEEDTime = FEEDTime1; }
+	if ( feedTime == 2 ) { FEEDTime = FEEDTime2; }
+	if ( feedTime == 3 ) { FEEDTime = FEEDTime3; }
+	if ( feedTime == 4 ) { FEEDTime = FEEDTime4; }
 	if ( ( FEEDTime == 1 ) ) 
 	{
 		tft.fillRoundRect ( 70, 150, 180, 20 , 20/8, ILI9341_GREEN );
-		tft.setCursor( 94, 154 );
-		setFont ( SMALL, ILI9341_BLACK );
+		tft.setCursor( 94, 154 ); setFont ( SMALL, ILI9341_BLACK ); 
 		tft.printf ( "Feeding Time %d ON", feedTime );
 	}
 	if ( (  FEEDTime == 0 ) ) 
 	{
 		tft.fillRoundRect ( 70, 150, 180, 20, 20/8, ILI9341_RED );
-		tft.setCursor( 94, 154 );
-		setFont (SMALL, ILI9341_WHITE );
+		tft.setCursor( 94, 154 ); setFont (SMALL, ILI9341_WHITE );
 		tft.printf ( "Feeding Time %d OFF", feedTime );
 	}
 	tft.drawRoundRect ( 70, 150, 180, 20, 20/8, ILI9341_WHITE );
@@ -1074,6 +1092,21 @@ void genSetSelect ()
 	}	
 }		
 
+int calculateDayOfYear(int daym, int monthm, int yearm) 
+{
+  // Given a day, month, and year (4 digit), returns 
+  // the day of year. Errors return 999.
+  int daysInMonth[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+  if (yearm < 1000) { return 999; } // Verify we got a 4-digit year
+  
+  if (yearm%4  == 0) { if (yearm%100 != 0) { daysInMonth[1] = 29; } // Check if it is a leap year
+    else { if (yearm%400 == 0) { daysInMonth[1] = 29; } } }
+  // Make sure we are on a valid day of the month
+  if (daym < 1) { return 999; } else if (daym > daysInMonth[monthm-1]) { return 999; }
+  int doy = 0;
+  for (int i = 0; i < monthm - 1; i++) { doy += daysInMonth[i]; }
+  doy += daym; return doy;
+}
 /******************************** MENU TEMPLATE SCREEN ********************************/
 void menuTemplate () 
 {
@@ -1092,14 +1125,8 @@ void menuTemplate ()
 	if ( dispScreen == 15 ) { printHeader ( "Maintenance Menu" ); }
 	printButton ( "CANCEL", canC [0], canC [1], canC [2], canC [3], SMALL );
 	tft.drawRect ( 0, 196, 319, 2,  ILI9341_GRAY );
-	if (dispScreen != 1 ) 
-	{
-		printButton ( "<< BACK >>", back [0], back [1], back [2], back [3], SMALL );
-		if (dispScreen != 13) 
-		{
-			printButton ( "SAVE", prSAVE [0], prSAVE [1], prSAVE [2], prSAVE [3], SMALL );
-		}
-	}
+	if (dispScreen != 1 ) { printButton ( "<< BACK >>", back [0], back [1], back [2], back [3], SMALL );
+		if (dispScreen != 13) { printButton ( "SAVE", prSAVE [0], prSAVE [1], prSAVE [2], prSAVE [3], SMALL ); } }
 }
 
 /*********************** MENU SCREEN ********** dispScreen = 1 ************************/
@@ -1787,7 +1814,10 @@ void setFeederTimesScreen ( boolean refreshAll = true )
 }
 
 /************** MAINTENANCE SCREEN ****************** dispScreen = 15 ***********************/
-void maintAlarmScreen () 
+
+//TODO: Add in routine to display "Days"	& to process Alarm reset.
+
+void maintSettingScreen () 
 {
 	menuTemplate ();
 	setFont ( SMALL, ILI9341_WHITE );
@@ -1809,7 +1839,16 @@ void maintAlarmScreen ()
 		printButton ( "Reset", day2R [0], day2R [1], day2R [2], day2R [3], true);
 		printButton ( "Reset", day3R [0], day3R [1], day3R [2], day3R [3], true);
 		printButton ( "Reset", day4R [0], day4R [1], day4R [2], day4R [3], true);
-//TODO: Add in routine to display "Days"	& to process Alarm reset.	
+	setFont ( MEDIUM, ILI9341_WHITE );
+		tft.fillRoundRect ( 150, 45, 47, 25, 20/8, ILI9341_BLACK );
+		tft.setCursor ( 160, 45 ); tft.print ( maint1D, 1 );
+		tft.fillRoundRect ( 150, 86, 47, 25, 20/8, ILI9341_BLACK );
+		tft.setCursor ( 160, 86 ); tft.print ( maint2D, 1 );
+		tft.fillRoundRect ( 148, 125, 47, 25, 20/8, ILI9341_BLACK );
+		tft.setCursor ( 160, 125 ); tft.print ( maint3D, 1 );
+		tft.fillRoundRect ( 148, 165, 47, 25, 20/8, ILI9341_BLACK );
+		tft.setCursor ( 160, 165 ); tft.print ( maint4D, 1 );
+
 }
 
 /************************************ TOUCH SCREEN ************************************/
@@ -1902,7 +1941,7 @@ void processMyTouch ()
 						waitForIt ( maint [0], maint [1], maint [2], maint [3] );
 						dispScreen = 15;
 						clearScreen ();
-						maintAlarmScreen ();
+						maintSettingScreen ();
 					}
 					if ( ( y >= liteS [1] ) && ( y <= ( liteS [1] + liteS [3] ) ) ) //press Lights Settings
 					{
@@ -2624,69 +2663,92 @@ void processMyTouch ()
 				if ( ( x >= prSAVE [0] ) && ( x <= ( prSAVE [0] + prSAVE [2] ) ) && ( y >= prSAVE [1] ) && ( y <= ( prSAVE [1] + prSAVE [3] ) ) )  //press SAVE
 				{
 					waitForIt ( prSAVE [0], prSAVE [1], prSAVE [2], prSAVE [3] );
+					SaveDoyToEEPROM();
+					SaveMaintDaysToEEPROM ();
 					clearScreen ();
 					mainScreen ();
 				}
-
-//TODO  fix this code to update the maint screen
-				else	{
-					if ( ( x >= day1D [0] ) && ( x <= ( day1D [0] + day1D [2] ) ) ) //first column
+				else	
+				{
+					if ( ( x >= day1D [0] ) && ( x <= ( day1D [0] + day1D [2] ) ) ) //x axis of day Down Buttons
 							{
-						if ( ( y >= day1D [1] ) && ( y <= ( day1D [1] + day1D [3] ) ) ) //press temp minus
+						if ( ( y >= day1D [1] ) && ( y <= ( day1D [1] + day1D [3] ) ) ) //y axis of day 1 Down Button
 								{
-							waitForIt ( day1D [0], day1D [1], day1D [2], day1D [3] );
+							waitForIt ( day1D [0], day1D [1], day1D [2], day1D [3] ); //wait for button press
+							maint1D--;
+							if ( maint1D < 0 ) { maint1D = 99; }
 						}
-						if ( ( y >= day2D [1] ) && ( y <= ( day2D [1] + day2D [3] ) ) ) //press temp minus
+						if ( ( y >= day2D [1] ) && ( y <= ( day2D [1] + day2D [3] ) ) ) //y axis of day 2 Down Button
 								{
-							waitForIt ( day2D [0], day2D [1], day2D [2], day2D [3] );	
+							waitForIt ( day2D [0], day2D [1], day2D [2], day2D [3] ); //wait for button press
+							maint2D--;
+							if ( maint2D < 0 ) { maint2D = 99; }
 						}
-						if ( ( y >= day3D [1] ) && ( y <= ( day3D [1] + day3D [3] ) ) ) //press temp minus
+						if ( ( y >= day3D [1] ) && ( y <= ( day3D [1] + day3D [3] ) ) ) //y axis of day 3 Down Button
 								{
-							waitForIt ( day3D [0], day3D [1], day3D [2], day3D [3] );	
+							waitForIt ( day3D [0], day3D [1], day3D [2], day3D [3] ); //wait for button press
+							maint3D--;
+							if ( maint3D < 0 ) { maint3D = 99; }						
 						}
-						if ( ( y >= day4D [1] ) && ( y <= ( day4D [1] + day4D [3] ) ) ) //press temp minus
+						if ( ( y >= day4D [1] ) && ( y <= ( day4D [1] + day4D [3] ) ) ) //y axis of day 4 Down Button
 								{
-							waitForIt ( day4D [0], day4D [1], day4D [2], day4D [3] );	
+							waitForIt ( day4D [0], day4D [1], day4D [2], day4D [3] ); //wait for button press
+							maint4D--;
+							if ( maint4D < 0 ) { maint4D = 99; }						
 						}
 					}	
-					if ( ( x >= day1U [0] ) && ( x <= ( day1U [0] + day1U [2] ) ) ) //first column
+					if ( ( x >= day1U [0] ) && ( x <= ( day1U [0] + day1U [2] ) ) ) //x axis of day Up Buttons
 							{
-						if ( ( y >= day1U [1] ) && ( y <= ( day1U [1] + day1U [3] ) ) ) //press temp minus
+						if ( ( y >= day1U [1] ) && ( y <= ( day1U [1] + day1U [3] ) ) ) //y axis of day 1 Up Button
 								{
-							waitForIt ( day1U [0], day1U [1], day1U [2], day1U [3] );
+							waitForIt ( day1U [0], day1U [1], day1U [2], day1U [3] ); //wait for button press
+							maint1D++;
+							if ( maint1D > 99 ) { maint1D= 0; }						
 						}
-						if ( ( y >= day2U [1] ) && ( y <= ( day2U [1] + day2U [3] ) ) ) //press temp minus
+						if ( ( y >= day2U [1] ) && ( y <= ( day2U [1] + day2U [3] ) ) ) //y axis of day 1 Up Button
 								{
-							waitForIt ( day2U [0], day2U [1], day2U [2], day2U [3] );	
+							waitForIt ( day2U [0], day2U [1], day2U [2], day2U [3] ); //wait for button press
+							maint2D++;
+							if ( maint2D > 99 ) { maint2D = 0; }	
 						}
-						if ( ( y >= day3U [1] ) && ( y <= ( day3U [1] + day3U [3] ) ) ) //press temp minus
+						if ( ( y >= day3U [1] ) && ( y <= ( day3U [1] + day3U [3] ) ) ) //y axis of day 1 Up Button
 								{
-							waitForIt ( day3U [0], day3U [1], day3U [2], day3U [3] );	
+							waitForIt ( day3U [0], day3U [1], day3U [2], day3U [3] ); //wait for button press
+							maint3D++;
+							if ( maint3D > 99 ) { maint3D = 0; }	
 						}
-						if ( ( y >= day4U [1] ) && ( y <= ( day4U [1] + day4U [3] ) ) ) //press temp minus
+						if ( ( y >= day4U [1] ) && ( y <= ( day4U [1] + day4U [3] ) ) ) //y axis of day 1 Up Button
 								{
-							waitForIt ( day4U [0], day4U [1], day4U [2], day4U [3] );	
+							waitForIt ( day4U [0], day4U [1], day4U [2], day4U [3] ); //wait for button press
+							maint4D++;
+							if ( maint4D > 99 ) { maint4D = 0; }	
 						}
 					}	
-					if ( ( x >= day1R [0] ) && ( x <= ( day1R [0] + day1R [2] ) ) ) //first column
-							{
-						if ( ( y >= day1R [1] ) && ( y <= ( day1R [1] + day1R [3] ) ) ) //press temp minus
+					if ( ( x >= day1R [0] ) && ( x <= ( day1R [0] + day1R [2] ) ) ) //x axis of Reset Buttons
+					{
+						if ( ( y >= day1R [1] ) && ( y <= ( day1R [1] + day1R [3] ) ) ) //y axis of Day 1 Reset Button
 								{
 							waitForIt ( day1R [0], day1R [1], day1R [2], day1R [3] );
+							doy1C = (doyC + maint1D); //update with new DOY
 						}
-						if ( ( y >= day2R [1] ) && ( y <= ( day2R [1] + day2R [3] ) ) ) //press temp minus
+						if ( ( y >= day2R [1] ) && ( y <= ( day2R [1] + day2R [3] ) ) ) //y axis of Day 2 Reset Button
 								{
 							waitForIt ( day2R [0], day2R [1], day2R [2], day2R [3] );	
+							doy2C = (doyC + maint2D); //update with new DOY
 						}
-						if ( ( y >= day3R [1] ) && ( y <= ( day3R [1] + day3R [3] ) ) ) //press temp minus
+						if ( ( y >= day3R [1] ) && ( y <= ( day3R [1] + day3R [3] ) ) ) //y axis of Day 3 Reset Button
 								{
 							waitForIt ( day3R [0], day3R [1], day3R [2], day3R [3] );	
+							doy3C = (doyC + maint3D); //update with new DOY
 						}
-						if ( ( y >= day4R [1] ) && ( y <= ( day4R [1] + day4R [3] ) ) ) //press temp minus
+						if ( ( y >= day4R [1] ) && ( y <= ( day4R [1] + day4R [3] ) ) ) //y axis of Day 4 Reset Button
 								{
 							waitForIt ( day4R [0], day4R [1], day4R [2], day4R [3] );	
+							doy4C = (doyC + maint4D); //update with new DOY
 						}
-					}	
+
+					}
+					maintSettingScreen ();
 				}
 		}
 	}	
@@ -2716,10 +2778,11 @@ void setup()
    {
    	Serial.println(F(" T6206 ERROR"));
    	while (1);
-  	}
+  	
+  }
   	ReadFromEEPROM (); Serial.println("Get data from EEPROM");
    initLights(); Serial.println("Check Lights");
-
+   Serial.print("Day of year = "); Serial.println (doy3C);
    Serial.println("Set default Screen");
  	dispScreen = 1;
 	mainScreen( true );
@@ -2765,7 +2828,7 @@ void loop()
 		if ( ( dispScreen == 0 ) && ( screenSaverTimer < setScreenSaverTimer ) ) 
 		{
 			mainScreen (); Serial.println("Run mainScreen routine");
-		}
+  		}
 	}		
 }	
 
