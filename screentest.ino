@@ -19,7 +19,8 @@
 #define ONE_WIRE_BUS 49  //Temp Sensor
 
 //Anaglog Pins
-#define HEATER_PWR A0
+// #define HEATER_PWR A0
+#define HEATER_PWR 40
 #define LIGHTS_PWR A2
 #define WATER_FILTER_PWR A5    
 #define FEEDER_PWR A6 
@@ -118,6 +119,9 @@ char otherData [19]; // other printed data
 							//char formattetTime12[9]; //07:48 PM
 							//char formattetTime24[6]; //19:48
 							//byte data [56];
+
+// Maintenance itme reminder names. for Maintenance Screen and main display.
+char* maintName [ ] = {"Water Change","Charcoal Filter","NH3 Filter","Sponge Filter"};
 
 char time [11], date [16]; //day [16];
 char  time1 [11];
@@ -611,101 +615,101 @@ void mainScreen( boolean refreshAll = false )
 	{
 		// alarm 1
 		setFont ( SMALL, ILI9341_YELLOW ); 
-		printTxt ( "Water Filter Due", mdis1 [0], mdis1 [1]);
+		printTxt ( maintName [0], mdis1 [0], mdis1 [1]); tft.print (" Due");
 	}
 	if ( ( alarm1 == 1 ) && ( alarm2 == 1 ) && (alarm3 == 0 ) & ( alarm4 == 0 ) ) 
 	{
 		// alarm 1 & 2
 		setFont ( SMALL, ILI9341_YELLOW );
-		printTxt ( "Water Filter Due", mdis1 [0], mdis1 [1] );
-		printTxt ( "Charcoal Filter Due", mdis2 [0], mdis2 [1] );
+		printTxt ( maintName [0], mdis1 [0], mdis1 [1] ); tft.print (" Due");
+		printTxt ( maintName [1], mdis2 [0], mdis2 [1] ); tft.print (" Due");
 	}
 	if ( ( alarm1 == 1 ) && ( alarm2 == 1 ) && (alarm3 == 1 ) & ( alarm4 == 0 ) ) 
 	{
 		// alarm 1, 2, & 3
 		setFont ( SMALL, ILI9341_YELLOW );
-		printTxt ( "Water Filter Due", mdis1 [0], mdis1 [1] );
-		printTxt ( "Charcoal Filter Due",  mdis2 [0], mdis2 [1] );
-		printTxt ( "NH3 Filter Due", mdis3 [0], mdis3 [1] );
+		printTxt ( maintName [0], mdis1 [0], mdis1 [1] ); tft.print (" Due");
+		printTxt ( maintName [1],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
+		printTxt ( maintName [2], mdis3 [0], mdis3 [1] ); tft.print (" Due");
 	}
 	if ( ( alarm1 == 1 ) && ( alarm2 == 1 ) && (alarm3 == 1 ) & ( alarm4 == 1 ) ) 
 	{
 		// alarm 1, 2, 3, & 4
 		setFont ( SMALL, ILI9341_YELLOW );
-		printTxt ( "Water Filter Due", mdis1 [0], mdis1 [1] );
-		printTxt ( "Charcoal Filter Due",  mdis2 [0], mdis2 [1] );
-		printTxt ( "NH3 Filter Due",  mdis3 [0], mdis3 [1] );
-		printTxt ( "Sponge Filter Due",  mdis4 [0], mdis4 [1] );
+		printTxt ( maintName [0], mdis1 [0], mdis1 [1] ); tft.print (" Due");
+		printTxt ( maintName [1],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
+		printTxt ( maintName [2],  mdis3 [0], mdis3 [1] ); tft.print (" Due");
+		printTxt ( maintName [3],  mdis4 [0], mdis4 [1] ); tft.print (" Due");
 	}
 	if ( ( alarm1 == 1 ) && ( alarm2 == 0 ) && (alarm3 == 1 ) & ( alarm4 == 0 ) ) 
 	{
 		// alerm 1 & 3
 		setFont ( SMALL, ILI9341_YELLOW );
-		printTxt ( "Water Filter Due", mdis1 [0], mdis1 [1]  );
-		printTxt ( "NH3 Filter Due",  mdis2 [0], mdis2 [1] );
+		printTxt ( maintName [0], mdis1 [0], mdis1 [1]  ); tft.print (" Due");
+		printTxt ( maintName [2],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
 	}
 	if ( ( alarm1 == 1 ) && ( alarm2 == 0 ) && (alarm3 == 1 ) & ( alarm4 == 1 ) ) 
 	{
 		// alarm 1, 3, & 4
 		setFont ( SMALL, ILI9341_YELLOW );
-		printTxt ( "Water Filter Due",  mdis1 [0], mdis1 [1] );
-		printTxt ( "NH3 Filter Due",  mdis2 [0], mdis2 [1] );
-		printTxt ( "Sponge Filter Due", mdis3 [0], mdis3 [1] );
+		printTxt ( maintName [0],  mdis1 [0], mdis1 [1] ); tft.print (" Due");
+		printTxt ( maintName [2],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
+		printTxt ( maintName [3], mdis3 [0], mdis3 [1] ); tft.print (" Due");
 	}
 	if ( ( alarm1 == 1 ) && ( alarm2 == 0 ) && (alarm3 == 0 ) & ( alarm4 == 1 ) ) 
 	{
 		// alarm 1 & 4
 		setFont ( SMALL, ILI9341_YELLOW );
-		printTxt ( "Water Filter Due", mdis1 [0], mdis1 [1]  );
-		printTxt ( "Sponge Filter Due",  mdis2 [0], mdis2 [1] );
+		printTxt ( maintName [0], mdis1 [0], mdis1 [1]  ); tft.print (" Due");
+		printTxt ( maintName [3],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
 	}
 	if ( ( alarm1 == 0 ) && ( alarm2 == 1 ) && (alarm3 == 0 ) & ( alarm4 == 0 ) ) 
 	{
 		// alarm 2 
 		setFont ( SMALL, ILI9341_YELLOW );
-		printTxt ( "Charcoal Filter Due",  mdis1 [0], mdis1 [1]  );
+		printTxt ( maintName [1],  mdis1 [0], mdis1 [1]  ); tft.print (" Due");
 	}
 	if ( ( alarm1 == 0 ) && ( alarm2 == 1 ) && (alarm3 == 1 ) & ( alarm4 == 0 ) ) 
 	{
 		// alarm 2 & 3
 		setFont ( SMALL, ILI9341_YELLOW );
-		printTxt ( "Charcoal Filter Due",  mdis1 [0], mdis1 [1]  );
-		printTxt ( "NH3 Filter Due",  mdis2 [0], mdis2 [1] );
+		printTxt ( maintName [1],  mdis1 [0], mdis1 [1]  ); tft.print (" Due");
+		printTxt ( maintName [2],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
 	}
 	if ( ( alarm1 == 0 ) && ( alarm2 == 1 ) && (alarm3 == 1 ) & ( alarm4 == 1 ) ) 
 	{
 		// alarm 2, 3 & 4
 		setFont ( SMALL, ILI9341_YELLOW );
 		tft.setCursor ( 40, 150 );
-		printTxt ( "Charcoal Filter Due",  mdis1 [0], mdis1 [1] );
-		printTxt ( "NH3 Filter Due",  mdis2 [0], mdis2 [1] );
-		printTxt ( "Sponge Filter Due",  mdis3 [0], mdis3 [1] );
+		printTxt ( maintName [1],  mdis1 [0], mdis1 [1] ); tft.print (" Due");
+		printTxt ( maintName [2],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
+		printTxt ( maintName [3],  mdis3 [0], mdis3 [1] ); tft.print (" Due");
 	}
 	if ( ( alarm1 == 0 ) && ( alarm2 == 1 ) && (alarm3 == 0 ) & ( alarm4 == 1 ) ) 
 	{
 		// alarm 2 & 4
 		setFont ( SMALL, ILI9341_YELLOW );
-		printTxt ( "Charcoal Filter Due",  mdis1 [0], mdis1 [1]  );
-		printTxt ( "Sponge Filter Due",  mdis2 [0], mdis2 [1]  );
+		printTxt ( maintName [1],  mdis1 [0], mdis1 [1]  ); tft.print (" Due");
+		printTxt ( maintName [3],  mdis2 [0], mdis2 [1]  ); tft.print (" Due");
 	}
 	if ( ( alarm1 == 0 ) && ( alarm2 == 0 ) && (alarm3 == 1 ) & ( alarm4 == 0 ) ) 
 	{
 		// alarm 3
 		setFont ( SMALL, ILI9341_YELLOW );
-		printTxt ( "NH3 Filter Due", mdis1 [0], mdis1 [1] );
+		printTxt ( maintName [2], mdis1 [0], mdis1 [1] ); tft.print (" Due");
 	}
 	if ( ( alarm1 == 0 ) && ( alarm2 == 0 ) && (alarm3 == 1 ) & ( alarm4 == 1 ) ) 
 	{
 		// alarm 3 & 4
 		setFont ( SMALL, ILI9341_YELLOW );
-		printTxt ( "NH3 Filter Due", mdis1 [0], mdis1 [1] );
-		printTxt ( "Sponge Filter Due", mdis2 [0], mdis2 [1]  );
+		printTxt ( maintName [2], mdis1 [0], mdis1 [1] ); tft.print (" Due");
+		printTxt ( maintName [3], mdis2 [0], mdis2 [1]  ); tft.print (" Due");
 	}
 	if ( ( alarm1 == 0 ) && ( alarm2 == 0 ) && (alarm3 == 0 ) & ( alarm4 == 1 ) ) 
 	{
 		// alarm 4
 		setFont ( SMALL, ILI9341_YELLOW );
-		printTxt ( "Sponge Filter Due",  mdis1 [0], mdis1 [1]  );
+		printTxt ( maintName [3],  mdis1 [0], mdis1 [1]  ); tft.print (" Due");
 	}
 	if ( setTempScale == 1 )   //Print deg C or deg F, degC_F=deg;
 	{
@@ -984,7 +988,7 @@ void updateScreen()
 // UNDER CONSTRUCTION
 //TODO: Build routine to output to outlet relay
 	// lights on
-	if ( LIGHTS_PWR == HIGH )
+	if ( LIGHTS_PWR == 1 )
 	{
        tft.drawRoundRect ( 100, 60, 100, 20, 20/8, ILI9341_BLACK );
 		 tft.setCursor ( 100, 60 ); tft.print( "Tank light is On" );
@@ -1435,71 +1439,20 @@ void LightControlScreen ( boolean refreshAll = true )
 	timeChange ();
 }
 
-// void initLightTimerCounter(){   
-//   for (size_t j = 0; j<3; j++)
-//     light_on_time[j] = lighttimes[light_num][j]; 
-//     if( rtc [2] < light_on_time[0] || rtc [2] == light_on_time[0] && rtc [1] 
-//       < light_on_time[1]){
-//     }
-//     else{
-//       light_num = (light_num + 1) % NUM_LIGHTS;
-//       for (size_t j = 0; j<3; j++)
-//       light_on_time[j] = lighttimes[light_num][j];
-//       digitalWrite(LIGHTS_PWR,LOW); 
-//       Lights_On_Flag = !Lights_On_Flag;
-//         if(hour() < light_on_time[0] || hour() == light_on_time[0] && minute() 
-//           < light_on_time[1]){
-//         }
-//         else{
-//           light_num = (light_num + 1) % NUM_LIGHTS;
-//           for (size_t j = 0; j<3; j++)
-//           light_on_time[j] = lighttimes[light_num][j];
-//           digitalWrite(LIGHTS_PWR,HIGH);
-//           Lights_On_Flag =!Lights_On_Flag;
-//         }
-//     }  
-// }
-
 void lights()
 {
-	if( ( lightTime1H == rtc [2] ) && ( lightTime1M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
-	{
- 		digitalWrite(LIGHTS_PWR,HIGH); // Turn On Lights
-	  serialOutput (); Serial.println(" Lights On");
-	  printOutput();
-	   Lights_On_Flag = !Lights_On_Flag;
-   }
-  	if ( ( lightTime2H == rtc [2] ) && ( lightTime2M == rtc [1] && rtc [0] <= 4 ) ) 
-  	{ 
-	   digitalWrite(LIGHTS_PWR,LOW); //Turn Off Lights
-   	serialOutput (); Serial.println(" Lights Off");
-   	printOutput();
-   	Lights_On_Flag = !Lights_On_Flag;
-  	}
-} 
-
-void initLights()  // TODO: Need to work on this logic, not quite right yet
-{
-	if ( ( rtc [2] == lightTime1H && rtc [1] < lightTime1M ) || ( rtc [2] < lightTime1H )
-  		|| ( rtc [2] >= lightTime2H && rtc [1] > lightTime2M ) ) 
-	{
-	   digitalWrite(LIGHTS_PWR,LOW); //Turn Off Lights
-	   Serial.println (" initlights condition 1 is true");
-	   Lights_On_Flag = false;
-  	}
-	else if ( ( ( rtc [2] == lightTime2H  &&  rtc [1] > lightTime2M ) /*|| ( rtc [2] > lightTime2H )*/ ) ) 
+	if ( ( lightTime1H > rtc [2] ) || ( lightTime1H == rtc [2] ) && ( lightTime1M > rtc [1] )
+	|| ( lightTime2H == rtc [2] ) && ( lightTime2M <= rtc [1] ) || ( lightTime2H < rtc [2] ) ) 
 	{
  		digitalWrite(LIGHTS_PWR,LOW); // Turn Off Lights
-	   Serial.println (" initlights condition 2 is true");
-	   Lights_On_Flag = false;
-	}
-	else 
-	{
+	   Lights_On_Flag = !Lights_On_Flag;
+   }
+  	else 
+  	{ 
 	   digitalWrite(LIGHTS_PWR,HIGH); //Turn On Lights
-	   Serial.println (" initlights condition 1 & 2 are false");
-	   Lights_On_Flag = true;
-	}
-}
+     	Lights_On_Flag = !Lights_On_Flag;
+  	}
+} 
 
 /******** GENERAL SETTINGS SCREEN ************* dispScreen = 12 ***********************/
 void generalSettingsScreen () 
@@ -1823,10 +1776,10 @@ void maintSettingScreen ()
 	setFont ( SMALL, ILI9341_WHITE );
 	tft.setCursor ( 25, 25 );
 	tft.print (F( " Item                  Days           Alarm" ) );
-	tft.setCursor ( 20, ( day1D [1] + 8 ) ); tft.print (F( "Water Change" ) );
-	tft.setCursor ( 20, ( day2D [1] + 8 ) ); tft.print (F( "Filter #1" ) );
-	tft.setCursor ( 20, ( day3D [1] + 8 ) ); tft.print (F( "Filter #2" ) );
-	tft.setCursor ( 20, ( day4D [1] + 8 ) ); tft.print (F( "Filter #3" ) );
+	tft.setCursor ( 20, ( day1D [1] + 8 ) ); tft.print ( maintName [0] );
+	tft.setCursor ( 20, ( day2D [1] + 8 ) ); tft.print ( maintName [1] );
+	tft.setCursor ( 20, ( day3D [1] + 8 ) ); tft.print ( maintName [2] );
+	tft.setCursor ( 20, ( day4D [1] + 8 ) ); tft.print ( maintName [3] );;
 		printButton ( "-", day1D [0], day1D [1], day1D [2], day1D [3], true );     
 		printButton ( "+", day1U [0], day1U [1], day1U [2], day1U [3], true );     
 		printButton ( "-", day2D [0], day2D [1], day2D [2], day2D [3], true );     
@@ -2763,6 +2716,7 @@ void setup()
 	pinMode (WATER_FILTER_PWR, OUTPUT); digitalWrite(WATER_FILTER_PWR, LOW); // Water Filter Motor 
 	pinMode (RTC_PWR, OUTPUT); digitalWrite(RTC_PWR, HIGH); //setup arduino to power RTC from analog pins (NEED TO MOVE POWER OFF OF THIS PIN)
    pinMode(RTC_GND, OUTPUT); digitalWrite(RTC_GND, LOW); //setup arduino to power RTC from analog pins (NEED TO MOVE POEW OFF OF THIS PIN)
+   // pinMode (LIGHTS_PWR, OUTPUT ); digitalWrite ( LIGHTS_PWR, LOW ); // Tank Lights Power
    pinMode ( TEMP_SENSOR_PWR, OUTPUT ); digitalWrite( TEMP_SENSOR_PWR, HIGH ); //Temp Sensor Power
  
 	RTC.get(rtc, true); Serial.println( "Start RTC");
@@ -2781,7 +2735,7 @@ void setup()
   	
   }
   	ReadFromEEPROM (); Serial.println("Get data from EEPROM");
-   initLights(); Serial.println("Check Lights");
+   // initLights(); Serial.println("Check Lights");
    Serial.print("Day of year = "); Serial.println (doy3C);
    Serial.println("Set default Screen");
  	dispScreen = 1;
@@ -2821,6 +2775,12 @@ void loop()
 		}
 		checkTempC(); Serial.println("Check Water Temp");
 		lights();
+		Serial.print("RTC [1] = ");
+		Serial.println(rtc [1]);
+		Serial.print("lightTime2M =");
+		Serial.println(lightTime2M);
+		Serial.print("LIGHTS_PWR =");
+		Serial.println(LIGHTS_PWR);
 		screenReturn ();
 		screenSaver ();
 		// printOutput();
