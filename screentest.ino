@@ -22,6 +22,7 @@
 // #define HEATER_PWR A0
 #define HEATER_PWR 40
 #define LIGHTS_PWR A2
+// #define LIGHTS_PWR 42
 #define WATER_FILTER_PWR A5    
 #define FEEDER_PWR A6 
 #define RTC_GND A10
@@ -29,7 +30,7 @@
 #define TEMP_SENSOR_PWR A14 
 
 //Display Screen Variables
-#define VER 1.00
+#define VER 0.71
 #define ROTATION 3
 
 //Menu Screens
@@ -572,17 +573,7 @@ void checkTempC ()
 		}
 	}
 }
-/*************************** MAINTENANCE ALARMS ***************************************/
-void maintAlarm()
-{
-// TODO: Build Alarm routine for main screen status notices here
-//  recall set dates and set days for alarm from EEPROM,compare to current date. if elapesd days is > set date flag alarm
-//  reset routine to clear alarm flag and add set days to current date and save to EEPROM
-// 
-// 
-// 
-// 
-}
+
 /*********************** MAIN SCREEN ********** dispScreen = 0 ************************/
 void mainScreen( boolean refreshAll = false ) 
 {
@@ -606,8 +597,11 @@ void mainScreen( boolean refreshAll = false )
 	updateScreen ();
 	setFont ( SMALL, ILI9341_RED );
 	printTxt ( "MONITORS & ALERTS", 110, 128 );
+	tft.fillRoundRect ( 28, 58, 120, 14, 14/8, ILI9341_BLACK );
+	setFont ( SMALL, ILI9341_YELLOW );
+	if ( Lights_On_Flag == 1 ) { printTxt ( "Light Output On", 30, 60); }
 
-	if (doy1C <= doyC) { alarm1 = true; } else { alarm1 = false; }
+	if (doy1C <= doyC) { alarm1 = true; } else { alarm1 = false; } //check for Maint Items due
 	if (doy2C <= doyC) { alarm2 = true; } else { alarm2 = false; }
 	if (doy3C <= doyC) { alarm3 = true; } else { alarm3 = false; }
 	if (doy4C <= doyC) { alarm4 = true; } else { alarm4 = false; }
@@ -988,7 +982,7 @@ void updateScreen()
 // UNDER CONSTRUCTION
 //TODO: Build routine to output to outlet relay
 	// lights on
-	if ( LIGHTS_PWR == 1 )
+	if ( LIGHTS_PWR == HIGH )
 	{
        tft.drawRoundRect ( 100, 60, 100, 20, 20/8, ILI9341_BLACK );
 		 tft.setCursor ( 100, 60 ); tft.print( "Tank light is On" );
@@ -1444,14 +1438,10 @@ void lights()
 	if ( ( lightTime1H > rtc [2] ) || ( lightTime1H == rtc [2] ) && ( lightTime1M > rtc [1] )
 	|| ( lightTime2H == rtc [2] ) && ( lightTime2M <= rtc [1] ) || ( lightTime2H < rtc [2] ) ) 
 	{
- 		digitalWrite(LIGHTS_PWR,LOW); // Turn Off Lights
-	   Lights_On_Flag = !Lights_On_Flag;
-   }
+ 		digitalWrite(LIGHTS_PWR,LOW); Lights_On_Flag = 0; } // Turn Off Lights
   	else 
   	{ 
-	   digitalWrite(LIGHTS_PWR,HIGH); //Turn On Lights
-     	Lights_On_Flag = !Lights_On_Flag;
-  	}
+	   digitalWrite(LIGHTS_PWR,HIGH); Lights_On_Flag = 1; } //Turn On Lights
 } 
 
 /******** GENERAL SETTINGS SCREEN ************* dispScreen = 12 ***********************/
@@ -1657,33 +1647,32 @@ void autoFeederScreen ()
 
 void feedingTimeOutput () 
 {
+	
+	if (feederMotorRunning == true ) 
+	{
+		tenSecTimer++;
+		if ( tenSecTimer >= 2 ) 
+		{
+			feederMotorRunning = false;
+			RTC.get (rtc, true );
+			digitalWrite( FEEDER_PWR, LOW ); //Turn off feeder
+			serialOutput (); Serial.println ( "Feeder Motor Off");
+			printOutput();
+		}
+	}
 	if ( ( FEEDTime1 == 1 ) && ( feedFish1H == rtc [2] ) && ( feedFish1M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
 	{
-			tenSecTimer = 0;
-			feederMotorRunning = true;		
+		Serial.print ( "Feeding time 1 ");
 		if ( setAutoStop == 1 ) 
 		{  
 			fiveTillBackOn1 = 0;
 			waterfilterStopped = true;
 			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
-			digitalWrite(A5, HIGH);
-			serialOutput ();
-			Serial.print ( "Feeding time 1 "); 
-			Serial.println ( ", Water filter Off"); Serial.println ( " Feeder Motor Running");
+			serialOutput ();  Serial.println ( ", Water filter Off"); 
 		}
-		digitalWrite ( A5, LOW ); // Turn on feeder
-	}
-	if (feederMotorRunning == true ) 
-	{
-		tenSecTimer++;
-		if ( tenSecTimer > 2 ) 
-		{
-			feederMotorRunning = false;
-			RTC.get (rtc, true );
-			digitalWrite( A5, LOW ); //Turn off feeder
-			serialOutput (); Serial.println ( "Feeder Motor Off");
-			printOutput();
-		}
+		tenSecTimer = 0;
+		feederMotorRunning = true;	digitalWrite ( FEEDER_PWR, HIGH ); // Turn on feeder
+		Serial.println ( " Feeder Motor Running");
 	}
 	if ( waterfilterStopped == true ) 
 	{
@@ -1696,40 +1685,79 @@ void feedingTimeOutput ()
 			printOutput();
 		}
 	}
-	if ( ( FEEDTime2 == 1 ) && ( feedFish2H == rtc [2] ) && ( feedFish2M == rtc [1] ) && ( rtc [0] <= 5 ) ) 
+	if ( ( FEEDTime2 == 1 ) && ( feedFish2H == rtc [2] ) && ( feedFish2M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
 	{
-		tenSecTimer = 0;
+		Serial.print ( "Feeding time 2 ");
 		if ( setAutoStop == 1 ) 
 		{  
 			fiveTillBackOn1 = 0;
 			waterfilterStopped = true;
-			serialOutput (); Serial.print ( "Feeding time 2 ");
-			Serial.println ( ", Water filter Off");
 			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
+			serialOutput ();  Serial.println ( ", Water filter Off"); 
 		}
-		digitalWrite ( A5, LOW ); // Turn on feeder
-		printOutput();
-	}
-	if (feederMotorRunning == true ) 
-	{
-		tenSecTimer++;
-		if ( tenSecTimer > 10 ) 
-		{
-			feederMotorRunning = false;
-			RTC.get (rtc, true );
-			digitalWrite( A5, HIGH ); //Turn off feeder
-			serialOutput ();
-			printOutput();
-		}
+		tenSecTimer = 0;
+		feederMotorRunning = true;	digitalWrite ( FEEDER_PWR, HIGH ); // Turn on feeder
+		Serial.println ( " Feeder Motor Running");
 	}
 	if ( waterfilterStopped == true ) 
 	{
-		fiveTillBackOn1++;
+		fiveTillBackOn1++; //TODO Check this time to make sure it is accurate
 		if ( fiveTillBackOn1 > 60 ) //60 is 5 minutes (60/12=5)
 		{
 			waterfilterStopped = false;
 			digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
 			serialOutput (); Serial.println ( ", Water filter On");
+			printOutput();
+		}
+	}
+	if ( ( FEEDTime3 == 1 ) && ( feedFish3H == rtc [2] ) && ( feedFish3M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
+	{
+		Serial.print ( "Feeding time 3 ");
+		if ( setAutoStop == 1 ) 
+		{  
+			fiveTillBackOn1 = 0;
+			waterfilterStopped = true;
+			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
+			serialOutput ();  Serial.println ( ", Water filter Off"); 
+		}
+		tenSecTimer = 0;
+		feederMotorRunning = true;	digitalWrite ( FEEDER_PWR, HIGH ); // Turn on feeder
+		Serial.println ( " Feeder Motor Running");
+	}
+	if ( waterfilterStopped == true ) 
+	{
+		fiveTillBackOn1++; //TODO Check this time to make sure it is accurate
+		if ( fiveTillBackOn1 > 60 ) //60 is 5 minutes (60/12=5)
+		{
+			waterfilterStopped = false;
+			digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+			serialOutput (); Serial.println ( ", Water filter On");
+			printOutput();
+		}
+	}
+	if ( ( FEEDTime4 == 1 ) && ( feedFish4H == rtc [2] ) && ( feedFish4M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
+	{
+		Serial.print ( "Feeding time 4 ");
+		if ( setAutoStop == 1 ) 
+		{  
+			fiveTillBackOn1 = 0;
+			waterfilterStopped = true;
+			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
+			serialOutput ();  Serial.println ( ", Water filter Off"); 
+		}
+		tenSecTimer = 0;
+		feederMotorRunning = true;	digitalWrite ( FEEDER_PWR, HIGH ); // Turn on feeder
+		Serial.println ( " Feeder Motor Running");
+	}
+	if ( waterfilterStopped == true ) 
+	{
+		fiveTillBackOn1++; //TODO Check this time to make sure it is accurate
+		if ( fiveTillBackOn1 >= 60 ) //60 is 5 minutes (60/12=5)
+		{
+			waterfilterStopped = false;
+			digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+			serialOutput (); Serial.println ( ", Water filter On");
+			printOutput();
 		}
 	}
 }
@@ -2295,19 +2323,19 @@ void processMyTouch ()
 					LightControlScreen ( false );
 				}
 				break;
-			case 5  : 
+			case 5  : //Not In Use
 				break;
-			case 6  :
+			case 6  : //Not In Use
 				break;
-			case 7  :
+			case 7  : //Not In Use
 				break;
-			case 8  :
+			case 8  : //Not In Use
 				break;
-			case 9  :
+			case 9  : //Not In Use
 				break;
-			case 10 :
+			case 10 : //Not In Use
 				break;
-			case 11 :
+			case 11 : //Not In Use
 				break;
 			case 12 :     //-------------------- GENERAL SETTINGS -------------------
 				if ( ( x >= prSAVE [0] ) && ( x <= (prSAVE [0] + prSAVE [2] ) ) && ( y >= prSAVE [1] ) && ( y <= (prSAVE [1] + prSAVE [3])  ) )  //press SAVE
@@ -2424,14 +2452,14 @@ void processMyTouch ()
 					tft.fillRoundRect ( 85, 94, 150, 20, 20/8, ILI9341_GREEN );
 					tft.drawRoundRect ( 85, 94, 150, 20, 20/8, ILI9341_WHITE );
 					tft.setTextColor ( ILI9341_BLACK ); printTxt ( "Now Feeding", 120, 100 );
-					digitalWrite ( A5, HIGH );
+					digitalWrite ( FEEDER_PWR, HIGH ); digitalWrite ( WATER_FILTER_PWR, LOW );
 					// tft.drawBitmap ( 0 , 0, "purple.bmp", 240, 320, 1);
 					printOutput(); Serial.println( "Now Feeding Button Pushed");
 					delay ( 5000 );
 					tft.fillRoundRect ( 85, 94, 150, 20, 20/8, 	0x980C );
 					tft.drawRoundRect ( 85, 94, 150, 20, 20/8, 	0x980C );
 					tft.setTextColor ( ILI9341_WHITE ); printTxt ( "Feed Fish Now!", 120, 100 );
-					digitalWrite ( A5, LOW );
+					digitalWrite ( FEEDER_PWR, LOW ); digitalWrite ( WATER_FILTER_PWR, HIGH );
 					printOutput();
 				}
 				break;				
@@ -2619,7 +2647,7 @@ void processMyTouch ()
 					SaveDoyToEEPROM();
 					SaveMaintDaysToEEPROM ();
 					clearScreen ();
-					mainScreen ();
+					mainScreen ( true );
 				}
 				else	
 				{
@@ -2712,11 +2740,11 @@ void processMyTouch ()
 /************************************* Setup *****************************************/   
 void setup() 
 {
-	Serial.begin(9600); 	Serial.println("Boot");
+	Serial.begin(9600); 	Serial.println("System Boot...");
 	pinMode (WATER_FILTER_PWR, OUTPUT); digitalWrite(WATER_FILTER_PWR, LOW); // Water Filter Motor 
 	pinMode (RTC_PWR, OUTPUT); digitalWrite(RTC_PWR, HIGH); //setup arduino to power RTC from analog pins (NEED TO MOVE POWER OFF OF THIS PIN)
    pinMode(RTC_GND, OUTPUT); digitalWrite(RTC_GND, LOW); //setup arduino to power RTC from analog pins (NEED TO MOVE POEW OFF OF THIS PIN)
-   // pinMode (LIGHTS_PWR, OUTPUT ); digitalWrite ( LIGHTS_PWR, LOW ); // Tank Lights Power
+   pinMode (LIGHTS_PWR, OUTPUT ); digitalWrite ( LIGHTS_PWR, LOW ); Lights_On_Flag = 0 ;// Tank Lights Power
    pinMode ( TEMP_SENSOR_PWR, OUTPUT ); digitalWrite( TEMP_SENSOR_PWR, HIGH ); //Temp Sensor Power
  
 	RTC.get(rtc, true); Serial.println( "Start RTC");
@@ -2735,12 +2763,8 @@ void setup()
   	
   }
   	ReadFromEEPROM (); Serial.println("Get data from EEPROM");
-   // initLights(); Serial.println("Check Lights");
-   Serial.print("Day of year = "); Serial.println (doy3C);
-   Serial.println("Set default Screen");
- 	dispScreen = 1;
+   dispScreen = 1;
 	mainScreen( true );
-	Serial.println("Void Startup Finished");
 }
 
 /******************************** End of Setup ****************************************/
@@ -2753,7 +2777,7 @@ void loop()
 		screenSaverTimer = 0;
 		processMyTouch();
 		clearScreen ();
-		mainScreen ();
+		mainScreen ( true );
 		dispScreen = 0;
 	}
 	else 
@@ -2767,27 +2791,21 @@ void loop()
 	if ( currentMillis - previousMillisFive > 5000 )   //check time, temp and LED levels every 5s
 	{
 		previousMillisFive = currentMillis;
-		RTC.get (rtc, true ); Serial.println("Get RTC Time");
-		feedingTimeOutput (); Serial.println("Check Feeding time");
+		RTC.get (rtc, true ); //Serial.println("Get RTC Time");
+		feedingTimeOutput (); //Serial.println("Check Feeding time");
 		if ( screenSaverTimer < setScreenSaverTimer ) 
 		{
-			TimeDateBar (); Serial.println("Print TimeDateBar");
+			TimeDateBar (); //Serial.println("Print TimeDateBar");
 		}
-		checkTempC(); Serial.println("Check Water Temp");
+		checkTempC(); //Serial.println("Check Water Temp");
 		lights();
-		Serial.print("RTC [1] = ");
-		Serial.println(rtc [1]);
-		Serial.print("lightTime2M =");
-		Serial.println(lightTime2M);
-		Serial.print("LIGHTS_PWR =");
-		Serial.println(LIGHTS_PWR);
 		screenReturn ();
 		screenSaver ();
 		// printOutput();
-		Serial.println(tempW);
+		// Serial.println(tempW);
 		if ( ( dispScreen == 0 ) && ( screenSaverTimer < setScreenSaverTimer ) ) 
 		{
-			mainScreen (); Serial.println("Run mainScreen routine");
+			mainScreen ( true ); //Serial.println("Run mainScreen routine");
   		}
 	}		
 }	
@@ -2797,14 +2815,7 @@ void printOutput()
 {
 	// serialOutput();
 	Serial.print ( "Display Screen = " ); Serial.println ( dispScreen );
-	if ( digitalRead (LIGHTS_PWR ) == 0 )
-	{
-		Serial.println ( "Tank Lights Off");
-	}
-	if ( digitalRead (LIGHTS_PWR ) == 1 )
-	{
-		Serial.println ( "Tank Lights On" );
-	}
+	Serial.print ( "Lights_On_Flag = "); Serial.println( Lights_On_Flag );
 	if ( digitalRead ( A5 ) == 1 )
 	{
 		Serial.println ( "Feeder is On");
