@@ -14,23 +14,21 @@
 
 //Arduino MEGA pinout
 //Digital Pins
+#define FEEDER_PWR 5 
+#define WATER_FILTER_PWR 6    
+#define LIGHTS_PWR 7
 #define TFT_DC 9	//Touch Screen
 #define TFT_CS 10 	//Touch Screen
 #define ONE_WIRE_BUS 49  //Temp Sensor
 
 //Anaglog Pins
-// #define HEATER_PWR A0
 #define HEATER_PWR 40
-#define LIGHTS_PWR A2
-// #define LIGHTS_PWR 42
-#define WATER_FILTER_PWR A5    
-#define FEEDER_PWR A6 
 #define RTC_GND A10
 #define RTC_PWR A11
 #define TEMP_SENSOR_PWR A14 
 
 //Display Screen Variables
-#define VER 0.75
+#define VER 0.95
 #define ROTATION 3
 
 //Menu Screens
@@ -79,8 +77,8 @@ unsigned long previousFeedingMillis;  //Used in feeding time display on main scr
 int setScreensaver = 1; //ON=1 || OFF=2 (change in prog)
 int screenSaverTimer = 0; //counter for Screen Saver
 int setScreenSaverTimer = ( 5 ) * 12; //how long in (minutes) before Screensaver comes on
-boolean SCREEN_RETURN = 1; //Auto Return to mainScreen() after so long of inactivity
-boolean screenSaverRunning = 0;
+boolean SCREEN_RETURN = true; //Auto Return to mainScreen() after so long of inactivity
+boolean screenSaverRunning = false;
 int returnTimer = 0; //counter for Screen Return
 int setReturnTimer = setScreenSaverTimer * .75; //Will return to main screen after 75% of the amount of
 																//time it takes before the screensaver turns on
@@ -157,7 +155,7 @@ boolean alarm1 = false;
 boolean alarm2 = false;
 boolean alarm3 = false;
 boolean alarm4 = false;
-boolean tempAlarmflag = 0;
+boolean tempAlarmflag = false;
 boolean CLOCK_SCREENSAVER = true; //For a Clock Screensaver "true" / Blank Screen "false"
 											 //You can turn the Screensaver ON/OFF in the pogram
 
@@ -177,8 +175,8 @@ float alarmTempF = 0.0;
 float setTempCF = 0.0; //Desired Water Temperature (User input in program)
 float offTempCF = 0.0; //Desired Water Temp. Offsets for Heater & Chiller (User input in program)
 float alarmTempCF = 0.0; //Temperature the Alarm will sound (User input in program)
-boolean tempCoolflag = 0; //1 if cooling on
-boolean tempHeatflag = 0; //1 if heating on
+// boolean tempCoolflag = 0; //1 if cooling on
+boolean tempHeatflag = false; //true if heating on
 
 
 /**************************** CHOOSE OPTION MENU1 BUTTONS *****************************/
@@ -566,9 +564,10 @@ void mainScreen( boolean refreshAll = false )
 	if ( dispScreen != 0) {}	
 	if ( refreshAll ) //If refeshAll is true do the following
 	{
+		screenSaverRunning = false;
 		tft.fillScreen(ILI9341_BLACK);
 		tft.drawRect( 0, 0, 320, 240, ILI9341_BLUE); //Outside Border
-		dispScreen = 0;tft.fillScreen(ILI9341_BLACK);
+		dispScreen = 0; tft.fillScreen(ILI9341_BLACK);
 		tft.drawRect( 0, 0, 320, 240, ILI9341_BLUE); //Outside Border
 		dispScreen = 0;
 		tft.setTextColor(ILI9341_WHITE);  tft.setTextSize( SMALL );
@@ -585,110 +584,111 @@ void mainScreen( boolean refreshAll = false )
 	else
 	{	
 		doyC = calculateDayOfYear(rtc [4],rtc [5],rtc [6]); 
-		if ( Lights_On_Flag == 1 ) { printTxt ( "Light Output On", 30, 60); }
+		setFont ( SMALL, ILI9341_YELLOW );
+		if ( Lights_On_Flag == true ) { printTxt ( "Light Output On", 30, 60); }
 		if (doy1C <= doyC) { alarm1 = true; } else { alarm1 = false; } //check for Maint Items due
 		if (doy2C <= doyC) { alarm2 = true; } else { alarm2 = false; }
 		if (doy3C <= doyC) { alarm3 = true; } else { alarm3 = false; }
 		if (doy4C <= doyC) { alarm4 = true; } else { alarm4 = false; }
-		if ( ( alarm1 == 1 ) && ( alarm2 == 0 ) && (alarm3 == 0 ) & ( alarm4 == 0 ) ) 
+		if ( ( alarm1 == true ) && ( alarm2 == false ) && (alarm3 == false ) & ( alarm4 == false ) ) 
 		{
 			// alarm 1
 			setFont ( SMALL, ILI9341_YELLOW ); 
-			printTxt ( maintName [0], mdis1 [0], mdis1 [1]); tft.print (" Due");
+			printTxt ( maintName [0], mdis1 [0], mdis1 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 1 ) && ( alarm2 == 1 ) && (alarm3 == 0 ) & ( alarm4 == 0 ) ) 
+		if ( ( alarm1 == true ) && ( alarm2 == true ) && (alarm3 == false ) & ( alarm4 == false ) ) 
 		{
 			// alarm 1 & 2
 			setFont ( SMALL, ILI9341_YELLOW );
 			printTxt ( maintName [0], mdis1 [0], mdis1 [1] ); tft.print (" Due");
 			printTxt ( maintName [1], mdis2 [0], mdis2 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 1 ) && ( alarm2 == 1 ) && (alarm3 == 1 ) & ( alarm4 == 0 ) ) 
+		if ( ( alarm1 == true ) && ( alarm2 == true ) && (alarm3 == true ) & ( alarm4 == false ) ) 
 		{
 			// alarm 1, 2, & 3
 			setFont ( SMALL, ILI9341_YELLOW );
 			printTxt ( maintName [0], mdis1 [0], mdis1 [1] ); tft.print (" Due");
-			printTxt ( maintName [1],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
+			printTxt ( maintName [1], mdis2 [0], mdis2 [1] ); tft.print (" Due");
 			printTxt ( maintName [2], mdis3 [0], mdis3 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 1 ) && ( alarm2 == 1 ) && (alarm3 == 1 ) & ( alarm4 == 1 ) ) 
+		if ( ( alarm1 == true ) && ( alarm2 == true ) && (alarm3 == true ) & ( alarm4 == true ) ) 
 		{
 			// alarm 1, 2, 3, & 4
 			setFont ( SMALL, ILI9341_YELLOW );
 			printTxt ( maintName [0], mdis1 [0], mdis1 [1] ); tft.print (" Due");
-			printTxt ( maintName [1],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
-			printTxt ( maintName [2],  mdis3 [0], mdis3 [1] ); tft.print (" Due");
-			printTxt ( maintName [3],  mdis4 [0], mdis4 [1] ); tft.print (" Due");
+			printTxt ( maintName [1], mdis2 [0], mdis2 [1] ); tft.print (" Due");
+			printTxt ( maintName [2], mdis3 [0], mdis3 [1] ); tft.print (" Due");
+			printTxt ( maintName [3], mdis4 [0], mdis4 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 1 ) && ( alarm2 == 0 ) && (alarm3 == 1 ) & ( alarm4 == 0 ) ) 
+		if ( ( alarm1 == true ) && ( alarm2 == false ) && (alarm3 == true ) & ( alarm4 == false ) ) 
 		{
 			// alerm 1 & 3
 			setFont ( SMALL, ILI9341_YELLOW );
-			printTxt ( maintName [0], mdis1 [0], mdis1 [1]  ); tft.print (" Due");
-			printTxt ( maintName [2],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
+			printTxt ( maintName [0], mdis1 [0], mdis1 [1] ); tft.print (" Due");
+			printTxt ( maintName [2], mdis2 [0], mdis2 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 1 ) && ( alarm2 == 0 ) && (alarm3 == 1 ) & ( alarm4 == 1 ) ) 
+		if ( ( alarm1 == true ) && ( alarm2 == false ) && (alarm3 == true ) & ( alarm4 == true ) ) 
 		{
 			// alarm 1, 3, & 4
 			setFont ( SMALL, ILI9341_YELLOW );
-			printTxt ( maintName [0],  mdis1 [0], mdis1 [1] ); tft.print (" Due");
-			printTxt ( maintName [2],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
+			printTxt ( maintName [0], mdis1 [0], mdis1 [1] ); tft.print (" Due");
+			printTxt ( maintName [2], mdis2 [0], mdis2 [1] ); tft.print (" Due");
 			printTxt ( maintName [3], mdis3 [0], mdis3 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 1 ) && ( alarm2 == 0 ) && (alarm3 == 0 ) & ( alarm4 == 1 ) ) 
+		if ( ( alarm1 == true ) && ( alarm2 == false ) && (alarm3 == false ) & ( alarm4 == true ) ) 
 		{
 			// alarm 1 & 4
 			setFont ( SMALL, ILI9341_YELLOW );
-			printTxt ( maintName [0], mdis1 [0], mdis1 [1]  ); tft.print (" Due");
-			printTxt ( maintName [3],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
+			printTxt ( maintName [0], mdis1 [0], mdis1 [1] ); tft.print (" Due");
+			printTxt ( maintName [3], mdis2 [0], mdis2 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 0 ) && ( alarm2 == 1 ) && (alarm3 == 0 ) & ( alarm4 == 0 ) ) 
+		if ( ( alarm1 == false ) && ( alarm2 == true ) && (alarm3 == false ) & ( alarm4 == false ) ) 
 		{
 			// alarm 2 
 			setFont ( SMALL, ILI9341_YELLOW );
-			printTxt ( maintName [1],  mdis1 [0], mdis1 [1]  ); tft.print (" Due");
+			printTxt ( maintName [1],  mdis1 [0], mdis1 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 0 ) && ( alarm2 == 1 ) && (alarm3 == 1 ) & ( alarm4 == 0 ) ) 
+		if ( ( alarm1 == false ) && ( alarm2 == true ) && (alarm3 == true ) & ( alarm4 == false ) ) 
 		{
 			// alarm 2 & 3
 			setFont ( SMALL, ILI9341_YELLOW );
-			printTxt ( maintName [1],  mdis1 [0], mdis1 [1]  ); tft.print (" Due");
-			printTxt ( maintName [2],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
+			printTxt ( maintName [1], mdis1 [0], mdis1 [1] ); tft.print (" Due");
+			printTxt ( maintName [2], mdis2 [0], mdis2 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 0 ) && ( alarm2 == 1 ) && (alarm3 == 1 ) & ( alarm4 == 1 ) ) 
+		if ( ( alarm1 == false ) && ( alarm2 == true ) && (alarm3 == true ) & ( alarm4 == true ) ) 
 		{
 			// alarm 2, 3 & 4
 			setFont ( SMALL, ILI9341_YELLOW );
 			tft.setCursor ( 40, 150 );
-			printTxt ( maintName [1],  mdis1 [0], mdis1 [1] ); tft.print (" Due");
-			printTxt ( maintName [2],  mdis2 [0], mdis2 [1] ); tft.print (" Due");
-			printTxt ( maintName [3],  mdis3 [0], mdis3 [1] ); tft.print (" Due");
+			printTxt ( maintName [1], mdis1 [0], mdis1 [1] ); tft.print (" Due");
+			printTxt ( maintName [2], mdis2 [0], mdis2 [1] ); tft.print (" Due");
+			printTxt ( maintName [3], mdis3 [0], mdis3 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 0 ) && ( alarm2 == 1 ) && (alarm3 == 0 ) & ( alarm4 == 1 ) ) 
+		if ( ( alarm1 == false ) && ( alarm2 == true ) && (alarm3 == false ) & ( alarm4 == true ) ) 
 		{
 			// alarm 2 & 4
 			setFont ( SMALL, ILI9341_YELLOW );
-			printTxt ( maintName [1],  mdis1 [0], mdis1 [1]  ); tft.print (" Due");
-			printTxt ( maintName [3],  mdis2 [0], mdis2 [1]  ); tft.print (" Due");
+			printTxt ( maintName [1], mdis1 [0], mdis1 [1] ); tft.print (" Due");
+			printTxt ( maintName [3], mdis2 [0], mdis2 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 0 ) && ( alarm2 == 0 ) && (alarm3 == 1 ) & ( alarm4 == 0 ) ) 
+		if ( ( alarm1 == false ) && ( alarm2 == false ) && (alarm3 == true ) & ( alarm4 == false ) ) 
 		{
 			// alarm 3
 			setFont ( SMALL, ILI9341_YELLOW );
 			printTxt ( maintName [2], mdis1 [0], mdis1 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 0 ) && ( alarm2 == 0 ) && (alarm3 == 1 ) & ( alarm4 == 1 ) ) 
+		if ( ( alarm1 == false ) && ( alarm2 == false ) && (alarm3 == true ) & ( alarm4 == false ) ) 
 		{
 			// alarm 3 & 4
 			setFont ( SMALL, ILI9341_YELLOW );
 			printTxt ( maintName [2], mdis1 [0], mdis1 [1] ); tft.print (" Due");
-			printTxt ( maintName [3], mdis2 [0], mdis2 [1]  ); tft.print (" Due");
+			printTxt ( maintName [3], mdis2 [0], mdis2 [1] ); tft.print (" Due");
 		}
-		if ( ( alarm1 == 0 ) && ( alarm2 == 0 ) && (alarm3 == 0 ) & ( alarm4 == 1 ) ) 
+		if ( ( alarm1 == false ) && ( alarm2 == false ) && (alarm3 == false ) & ( alarm4 == true ) ) 
 		{
 			// alarm 4
 			setFont ( SMALL, ILI9341_YELLOW );
-			printTxt ( maintName [3],  mdis1 [0], mdis1 [1]  ); tft.print (" Due");
+			printTxt ( maintName [3], mdis1 [0], mdis1 [1] ); tft.print (" Due");
 		}
 		if ( ( waterfilterStopped == true ) && ( dispScreen == 0 ) && ( screenSaverRunning == 0 ) ) //Display water filter countdown timer
 		{
@@ -734,6 +734,7 @@ void mainScreen( boolean refreshAll = false )
 		{
 			setFont ( SMALL, ILI9341_GREEN );
 			tft.setCursor ( 260, 148 ); tft.print (tempW, 1);
+			tft.fillRect ( 185, 204, 126, 22, ILI9341_BLACK );
 		}
 	}
 
@@ -927,26 +928,36 @@ void screenSaver ()  //Make the Screen Go Blank after so long
 {
 	if ( ( setScreensaver == 1 ) && ( tempAlarmflag == false ) ) 
 	{
-		if (ctp.touched () ) { processMyTouch (); screenSaverRunning = 0; screenSaverTimer = 0; } 
+		if (ctp.touched () ) { processMyTouch (); screenSaverRunning = false; screenSaverTimer = 0; } 
 		else { screenSaverTimer++; }
 		if ( screenSaverTimer == setScreenSaverTimer ) { dispScreen = 0;
-			tft.fillScreen(ILI9341_BLACK); tft.setCursor(20, 120); }
+			tft.fillScreen(ILI9341_BLACK); tft.setCursor(20, 120); screenSaverRunning = true; }
 		if ( CLOCK_SCREENSAVER == true ) 
 		{ 
 			if ( screenSaverTimer > setScreenSaverTimer )
 			{ 
 			dispScreen = 0; TimeSaver ( true ); 
-			screenSaverRunning = 1; 
+			 
 			}
 		}
 	}	
 	if ( ( setScreensaver == 1 ) && ( tempAlarmflag == true ) && ( dispScreen == 0) ) 
 	{
-		returnTimer = 0;
-		screenSaverTimer = 0;
-		screenSaverRunning = false;
-		clearScreen();
-		mainScreen();
+		if ( screenSaverTimer > setScreenSaverTimer )
+		{
+			returnTimer = 0;
+			screenSaverTimer = 0;
+			screenSaverRunning = false;
+			clearScreen();
+			mainScreen( true );
+		}
+		else
+		{
+			returnTimer = 0;
+			screenSaverTimer = 0;
+			screenSaverRunning = false;
+			mainScreen ();
+		}
 	}
 }	
 
@@ -1063,7 +1074,7 @@ void waterFilterTimer ()
 			{
 				if ( dispScreen == 0 )
 				{
-					if ( screenSaverRunning == 0 ) 
+					if ( screenSaverRunning == false ) 
 					{
 						// tft.fillRect ( 170, 20, 142, 16, ILI9341_BLACK ); setFont ( MEDIUM, ILI9341_YELLOW );	printTxt ( "Water Filter", 170, 20 );
 						// tft.fillRect ( 180, 46, 120, 16, ILI9341_BLACK ); printTxt ( "Back On in", 180, 46 );
@@ -1078,7 +1089,7 @@ void waterFilterTimer ()
 							printVar (filterOffSeconds, 242, 80 ); 
 						}
 					}
-					if ( screenSaverRunning == 1 )
+					if ( screenSaverRunning == true )
 					{
 						// tft.fillRect ( 170, 20, 142, 16, ILI9341_BLACK ); tft.fillRect ( 180, 46, 120, 16, ILI9341_BLACK );
 						tft.fillRect ( 216, 80, 16, 22, ILI9341_BLACK ); tft.fillRect ( 230, 80, 58, 22, ILI9341_BLACK );
@@ -1388,10 +1399,10 @@ void lights()
 	if ( ( lightTime1H > rtc [2] ) || ( lightTime1H == rtc [2] ) && ( lightTime1M > rtc [1] )
 	|| ( lightTime2H == rtc [2] ) && ( lightTime2M <= rtc [1] ) || ( lightTime2H < rtc [2] ) ) 
 	{
- 		digitalWrite(LIGHTS_PWR,LOW); Lights_On_Flag = 0; } // Turn Off Lights
+ 		digitalWrite(LIGHTS_PWR,LOW); Lights_On_Flag = false; } // Turn Off Lights
   	else 
   	{ 
-	   digitalWrite(LIGHTS_PWR,HIGH); Lights_On_Flag = 1; } //Turn On Lights
+	   digitalWrite(LIGHTS_PWR,HIGH); Lights_On_Flag = true; } //Turn On Lights
 } 
 
 /******** GENERAL SETTINGS SCREEN ************* dispScreen = 12 ***********************/
@@ -1541,12 +1552,13 @@ void feedingTimeOutput ()
 			// serialOutput (); Serial.println ( "Feeder Motor Off");
 		}
 	}
-	if ( ( FEEDTime1 == 1 ) && ( feedFish1H == rtc [2] ) && ( feedFish1M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
-	{
+	if ( ( FEEDTime1 == 1 ) && ( feedFish1H == rtc [2] ) && ( feedFish1M == rtc [1] ) && ( rtc [0] <= 5 ) ) 
+	{	Serial.println ( " Feeding Time 1 is true ");
 		if ( setAutoStop == 1 )
 		{  
-			WaterFilerCtrl_1 = true; waterfilterStopped = true; 
 			filterOffMinutes = 5; filterOffSeconds = 0;
+			WaterFilerCtrl_1 = true; waterfilterStopped = true;
+			// screenSaverTimer = 0; mainScreen ( true ); dispScreen = 0;
 			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
 		}
 		tenSecTimer = 0; 	feederMotorRunning = true;	
@@ -1564,8 +1576,8 @@ void feedingTimeOutput ()
 	{
 		if ( setAutoStop == 1 )
 		{  
-			WaterFilerCtrl_2 = true; waterfilterStopped = true; 
 			filterOffMinutes = 5; filterOffSeconds = 0;
+			WaterFilerCtrl_2 = true; waterfilterStopped = true; 
 			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
 		}
 		tenSecTimer = 0; 	feederMotorRunning = true;	
@@ -1583,8 +1595,8 @@ void feedingTimeOutput ()
 	{
 		if ( setAutoStop == 1 )
 		{  
-			WaterFilerCtrl_3 = true; waterfilterStopped = true; 
 			filterOffMinutes = 5; filterOffSeconds = 0;
+			WaterFilerCtrl_3 = true; waterfilterStopped = true; 
 			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
 		}
 		tenSecTimer = 0; 	feederMotorRunning = true;	
@@ -1602,8 +1614,8 @@ void feedingTimeOutput ()
 	{
 		if ( setAutoStop == 1 )
 		{  
-			WaterFilerCtrl_4 = true; waterfilterStopped = true; 
 			filterOffMinutes = 5; filterOffSeconds = 0;
+			WaterFilerCtrl_4 = true; waterfilterStopped = true; 
 			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
 		}
 		tenSecTimer = 0; 	feederMotorRunning = true;	
@@ -1680,12 +1692,13 @@ void processMyTouch ()
 	p.x = map(y1, 0, 320, 0, 320); p.y = map(x1, 0, 240, 240, 0);
 	x = p.x; y = p.y;
 
-	returnTimer = 0; screenSaverTimer = 0;
+	
 	if ( ( x >= canC [0] ) && ( x <= ( canC [0] + canC [2] ) ) && ( y >= canC [1] ) && ( y <= (canC [1] + canC [3] ) )   //press cancel
 			&& ( dispScreen != 0 ) && ( dispScreen != 5 ) && ( dispScreen != 6 ) && ( dispScreen != 8 ) && ( dispScreen != 11 ) ) 
 	{
 		waitForIt ( canC [0], canC [1], canC [2], canC [3] );
 		ReadFromEEPROM (); dispScreen = 0; clearScreen (); mainScreen ( true );
+		Serial.println (" Cancel Button Pressed ");
 	}
 	else if ( ( x >= back [0] ) && ( x <= ( back [0] + back [2] ) ) && ( y >= back [1] ) && ( y <= ( back [1] + back [3] ) )  //press back
 			&& ( dispScreen != 0 ) && ( dispScreen != 1 ) && ( dispScreen != 5 ) && ( dispScreen != 6 ) && ( dispScreen != 8 ) && ( dispScreen != 11 )
@@ -1693,16 +1706,27 @@ void processMyTouch ()
 	{
 		waitForIt ( back [0], back [1], back [2], back [3] );
 		ReadFromEEPROM (); dispScreen = MENUSCREEN_ONE; clearScreen (); menuScreen (); 		
+		Serial.println ( " Back Button Pressed ");
 	}
 	else 
 	{
 		switch ( dispScreen ) 
 		{
 			case 0 :		 //--------------- MAIN SCREEN (Press Any Key) ---------------
-				dispScreen = MENUSCREEN_ONE;
-				clearScreen (); menuScreen ();  
+				if ( screenSaverRunning == true )
+				{
+					screenSaverRunning = false; screenSaverTimer = 0;
+					Serial.println ( " screen saver return");
+					mainScreen ( true );
+				}
+				else 
+				{
+					dispScreen = MENUSCREEN_ONE;
+					clearScreen (); 
+					menuScreen ();  
+					Serial.println ( "Switch - Case = 0 ");
+				}
 				break;
-
 			case 1 :     //--------------------- MENU SCREEN -------------------------
 				if ( ( x >= tanD [0] ) && ( x <= ( tanD [0] + tanD [2] ) ) ) //first column
 				{
@@ -2209,7 +2233,7 @@ void processMyTouch ()
 						genSetSelect ();
 					}
 				}
-				if ( ( x >= 255 ) && ( x <= 295 ) ) //second column
+				if ( ( x >= 255 ) && ( x <= 295 ) ) //second col				
 				{
 					if ( ( y >= 76 ) && ( y <= 96 ) ) //press 24HR Button
 					{
@@ -2479,7 +2503,7 @@ void setup()
 	pinMode (WATER_FILTER_PWR, OUTPUT); digitalWrite(WATER_FILTER_PWR, LOW); // Water Filter Motor 
 	pinMode (RTC_PWR, OUTPUT); digitalWrite(RTC_PWR, HIGH); //setup arduino to power RTC from analog pins (NEED TO MOVE POWER OFF OF THIS PIN)
    pinMode(RTC_GND, OUTPUT); digitalWrite(RTC_GND, LOW); //setup arduino to power RTC from analog pins (NEED TO MOVE POEW OFF OF THIS PIN)
-   pinMode (LIGHTS_PWR, OUTPUT ); digitalWrite ( LIGHTS_PWR, LOW ); Lights_On_Flag = 0 ;// Tank Lights Power
+   pinMode (LIGHTS_PWR, OUTPUT ); digitalWrite ( LIGHTS_PWR, LOW ); Lights_On_Flag = false ;// Tank Lights Power
    pinMode ( TEMP_SENSOR_PWR, OUTPUT ); digitalWrite( TEMP_SENSOR_PWR, HIGH ); //Temp Sensor Power
  
 	RTC.get(rtc, true); Serial.println( "Start RTC");
@@ -2560,10 +2584,10 @@ void printDigits(int digits)
 void cyclecount ()
 {
 	// countcycle++;
-	// serialOutput (); Serial.print ( "waterfilterStopped = "); Serial.println (  waterfilterStopped );
-	// serialOutput (); Serial.print ( "Display = "); Serial.print (dispScreen); Serial.print ( " screenSaverRunning = "); Serial.println (screenSaverRunning);
-	// serialOutput (); Serial.print ( filterOffMinutes ); Serial.print (":"); Serial.println ( filterOffSeconds);
-	// serialOutput (); Serial.print ( "screenSaverTimer = "); Serial.println (screenSaverTimer);
+	serialOutput (); Serial.print ( "waterfilterStopped = "); Serial.println (  waterfilterStopped );
+	serialOutput (); Serial.print ( "Display = "); Serial.print (dispScreen); Serial.print ( " screenSaverRunning = "); Serial.println (screenSaverRunning);
+	serialOutput (); Serial.print ( filterOffMinutes ); Serial.print (":"); Serial.println ( filterOffSeconds);
+	serialOutput (); Serial.print ( "screenSaverTimer = "); Serial.println (screenSaverTimer);
 	// serialOutput (); Serial.print ( "setScreenSaverTimer = "); Serial.println (setScreenSaverTimer);
 	// Serial.print ( "")
 }
