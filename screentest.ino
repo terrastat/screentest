@@ -30,7 +30,7 @@
 
 
 //Display Screen Variables
-#define VER 1.00
+#define VER 1.01
 #define ROTATION 3
 
 //Menu Screens
@@ -45,7 +45,7 @@
 #define MAINTENANCE 15
 
 //Misc defines
-#define TEMERATURE_PRECISION 9
+#define TEMERATURE_PRECISION 12
 #define NUM_LIGHTS 2
 
 //Declare which fonts to be utilized
@@ -154,7 +154,7 @@ boolean WaterFilerCtrl_2 = false;
 boolean WaterFilerCtrl_3 = false;
 boolean WaterFilerCtrl_4 = false;
 boolean WaterFilerCtrl_Now = false;
-
+boolean allStopFlag = false;
 boolean alarm1 = false;				
 boolean alarm2 = false;
 boolean alarm3 = false;
@@ -188,8 +188,10 @@ const int tanD [] = { 10, 30, 120, 35 }; //"TIME and DATE" settings
 const int temC [] = { 10, 70, 120, 35 }; //"H2O TEMP CONTROL" settings
 const int gSet [] = { 10, 110, 120, 35 }; //"GENERAL SETTINGS" page
 const int aFeed [] = { 165, 30, 120, 35 }; //"AUTOMATIC FEEDER" menu
-const int maint [] = { 165, 110, 120, 35 }; //"Maintenance Settings" program information
+const int maint [] = { 165, 110, 120, 35 }; //"Maintenance Menu" menu
 const int liteS [] = { 165, 70, 120, 35 }; //'LIGHT CONTROL" page
+const int wChng [] = { 10, 70, 120, 35 }; //"Water Change Shutoff" page
+const int rmind [] = { 165, 70, 120, 35 }; //"Reminder Settings" page
 /**************************** TIME AND DATE SCREEN BUTTONS ***************************/
 const int houU [] = { 110, 22, 25, 25 }; //hour up
 const int minU [] = { 180, 22, 25, 25 }; //min up
@@ -224,6 +226,14 @@ const int hou2D [] = { 110, 162, 25, 25 }; //Light Off hour down
 const int min2D [] = { 180, 162, 25, 25 }; //Light Off min down
 // const int ampm2D [] = { 265, 162, 25, 25 }; //Light Off AM/PM down
 /*************************** Maintenacne Menu Buttons ********************************/
+const int watrC [] = { 10, 30, 120, 35 }; //"Water Control
+const int mainR [] = { 165, 30, 120, 35 }; //Maint Reminders
+
+/*************************** Water Change Control Buttons ********************************/
+const int watOff [] = { 10, 110, 120, 35 }; //"Turn off Water Filter/Heater" settings
+const int watOn [] = { 165, 110, 120, 35 }; //"Turn on Water Filter/Heater" settings
+
+/*************************** Maint Reminder Buttons ********************************/
 const int day1D [] = {120, 39, 25, 25 }; 		
 const int day2D [] = {120, 79, 25, 25 };
 const int day3D [] = {120, 119, 25, 25 };
@@ -480,33 +490,90 @@ void TimeDateBar ( boolean refreshAll = false )
 		}              
 		else 
 		{
-			if ( rtc [2] > 12 ) { sprintf ( hour1, "%i", rtc [2] - 12 ); }
-			else { sprintf ( hour1, "%i", rtc [2] ); }
+			if ( rtc [2] > 12 ) 
+			{ 
+				sprintf ( hour1, "%i", rtc [2] - 12 ); 
+			}
+			else 
+			{ 
+				sprintf ( hour1, "%i", rtc [2] ); 
+			}
 		}
 	}
-	if ( rtc [2] < 12 ) { sprintf ( ampm, " AM  " ); } //Adding the AM/PM sufffix            
-	else { sprintf ( ampm, " PM  " ); } sprintf ( oldVal, "%i", time ); //refresh time if different
-	if ( setTimeFormat == 1 ) { sprintf ( time, "%s:%s%s", hour1, minute1, ampm ); }
-	else { sprintf ( time, " %i:%s      ", rtc [2], minute1 ); }
+	if ( rtc [2] < 12 ) 
+	{ 
+		sprintf ( ampm, " AM  " ); 
+	} //Adding the AM/PM sufffix            
+	else 
+	{ 
+		sprintf ( ampm, " PM  " ); 
+	} 
+	sprintf ( oldVal, "%i", time ); //refresh time if different
+	if ( setTimeFormat == 1 ) 
+	{ 
+		sprintf ( time, "%s:%s%s", hour1, minute1, ampm ); 
+	}
+	else 
+	{ 
+		sprintf ( time, " %i:%s      ", rtc [2], minute1 ); 
+	}
 	if ( ( oldVal != time ) || refreshAll ) 
 	{
 		tft.fillRoundRect ( 215, 227, 60, 10, 10/8, ILI9341_BLACK);
 		tft.setTextColor ( ILI9341_YELLOW ); tft.setCursor ( 215, 227 ); tft.print ( time ); //Display time
 	}
-	if ( rtc [5] == 1 ) { sprintf ( month1, "JAN " ); } //Convert the month to its name            
-	if ( rtc [5] == 2 ) { sprintf ( month1, "FEB " ); }
-	if ( rtc [5] == 3 ) { sprintf ( month1, "MAR " ); }
-	if ( rtc [5] == 4 ) { sprintf ( month1, "APR " ); }
-	if ( rtc [5] == 5 ) { sprintf ( month1, "MAY " ); }
-	if ( rtc [5] == 6 ) { sprintf ( month1, "JUN " ); }
-	if ( rtc [5] == 7 ) { sprintf ( month1, "JLY " ); }
-	if ( rtc [5] == 8 ) { sprintf ( month1, "AUG " ); }
-	if ( rtc [5] == 9 ) { sprintf ( month1, "SEP " ); }
-	if ( rtc [5] == 10 ) { sprintf ( month1, "OCT " ); }
-	if ( rtc [5] == 11 ) { sprintf ( month1, "NOV " );	}
-	if ( rtc [5] == 12 ) { sprintf ( month1, "DEC " );	}
+	if ( rtc [5] == 1 ) 
+	{ 
+		sprintf ( month1, "JAN " ); 
+	} //Convert the month to its name            
+	if ( rtc [5] == 2 ) 
+	{ 
+		sprintf ( month1, "FEB " ); 
+	}
+	if ( rtc [5] == 3 ) 
+	{ 
+		sprintf ( month1, "MAR " ); 
+	}
+	if ( rtc [5] == 4 ) 
+	{ 
+		sprintf ( month1, "APR " ); 
+	}
+	if ( rtc [5] == 5 ) 
+	{ 
+		sprintf ( month1, "MAY " ); 
+	}
+	if ( rtc [5] == 6 ) 
+	{ 
+		sprintf ( month1, "JUN " ); 
+	}
+	if ( rtc [5] == 7 ) 
+	{ 
+		sprintf ( month1, "JLY " ); 
+	}
+	if ( rtc [5] == 8 ) 
+	{ 
+		sprintf ( month1, "AUG " ); 
+	}
+	if ( rtc [5] == 9 ) 
+	{ 
+		sprintf ( month1, "SEP " ); 
+	}
+	if ( rtc [5] == 10 ) 
+	{ 
+		sprintf ( month1, "OCT " ); 
+	}
+	if ( rtc [5] == 11 ) 
+	{ 
+		sprintf ( month1, "NOV " );	
+	}
+	if ( rtc [5] == 12 ) 
+	{ 
+		sprintf ( month1, "DEC " );	
+	}
 	sprintf ( oldVal, "%s", date ); //refresh date if different
-	if ( setCalendarFormat == 0 ) { sprintf ( date, "  %i/%i/%i   ", rtc [4], rtc [5], rtc [6] ); 
+	if ( setCalendarFormat == 0 ) 
+	{ 
+		sprintf ( date, "  %i/%i/%i   ", rtc [4], rtc [5], rtc [6] ); 
 	}
 	else 
 	{
@@ -546,7 +613,7 @@ void checkTempC ()
 		}
 		if ( offTempCF > 0 ) 
 		{
-			if ( tempW <= ( setTempCF - offTempCF ) ) //turn an heater
+			if ( (allStopFlag == false) && ( tempW <= ( setTempCF - offTempCF ) ) ) //turn an heater
 			{
 				tempHeatflag = true;	digitalWrite ( HEATER_PWR, HIGH );
 			}
@@ -565,7 +632,9 @@ void checkTempC ()
 /*********************** MAIN SCREEN ********** dispScreen = 0 ************************/
 void mainScreen( boolean refreshAll = false ) 
 {
-	if ( dispScreen != 0) {}	
+	if ( dispScreen != 0) 
+	{
+	}	
 	if ( refreshAll ) //If refeshAll is true do the following
 	{
 		screenSaverRunning = false;
@@ -589,11 +658,46 @@ void mainScreen( boolean refreshAll = false )
 	{	
 		doyC = calculateDayOfYear(rtc [4],rtc [5],rtc [6]); 
 		setFont ( SMALL, ILI9341_YELLOW );
-		if ( Lights_On_Flag == true ) { printTxt ( "Light Output On", 30, 60); }
-		if (doy1C <= doyC) { alarm1 = true; } else { alarm1 = false; } //check for Maint Items due
-		if (doy2C <= doyC) { alarm2 = true; } else { alarm2 = false; }
-		if (doy3C <= doyC) { alarm3 = true; } else { alarm3 = false; }
-		if (doy4C <= doyC) { alarm4 = true; } else { alarm4 = false; }
+		if ( Lights_On_Flag == true ) 
+		{ 
+			printTxt ( "Light Output On", 30, 60); 
+		}
+		else 
+		{ 
+			tft.fillRoundRect ( 30, 60, 120, 14, 14/8, ILI9341_BLACK ); 
+		}
+		if (doy1C <= doyC) 
+		{ 
+			alarm1 = true; 
+		} 
+		else 
+		{ 
+			alarm1 = false; 
+		} //check for Maint Items due
+		if (doy2C <= doyC) 
+		{ 
+			alarm2 = true; 
+		} 
+		else 
+		{ 
+			alarm2 = false; 
+		}
+		if (doy3C <= doyC) 
+		{ 
+			alarm3 = true; 
+		} 
+		else 
+		{ 
+			alarm3 = false; 
+		}
+		if (doy4C <= doyC) 
+		{ 
+			alarm4 = true; 
+		} 
+		else 
+		{ 
+			alarm4 = false; 
+		}
 		if ( ( alarm1 == true ) && ( alarm2 == false ) && (alarm3 == false ) & ( alarm4 == false ) ) 
 		{
 			// alarm 1
@@ -715,7 +819,10 @@ void mainScreen( boolean refreshAll = false )
 		else 
 		{
 			sprintf ( degC_F, "C" ); //deg = "C"
-			if ( ( tempW > 50 ) || ( tempW < 10 ) ) { setFont ( SMALL, ILI9341_RED ); printTxt ( "Error", 260, 148 ); }
+			if ( ( tempW > 50 ) || ( tempW < 10 ) ) 
+			{ 
+				setFont ( SMALL, ILI9341_RED ); printTxt ( "Error", 260, 148 ); 
+			}
 		}
 		setFont ( SMALL, ILI9341_GREEN ); printTxt ( "Water Temp:", 169, 148 );
 		tft.drawCircle ( 304, 150, 1, ILI9341_GREEN ); printTxt ( degC_F, 309, 148 );
@@ -749,9 +856,22 @@ void screenReturn () 		//Auto Return to MainScreen()
 	{
 		if ( dispScreen != 0 ) 
 		{
-			if (ctp.touched () ) { processMyTouch (); }
-			else { returnTimer++; }
-			if ( returnTimer > setReturnTimer ) { returnTimer = 0; ReadFromEEPROM (); dispScreen = 0; clearScreen (); mainScreen ( true ); }
+			if (ctp.touched () ) 
+			{ 
+				processMyTouch (); 
+			}
+			else 
+			{ 
+				returnTimer++; 
+			}
+			if ( returnTimer > setReturnTimer ) 
+			{ 
+				returnTimer = 0; 
+				ReadFromEEPROM (); 
+				dispScreen = 0; 
+				clearScreen (); 
+				mainScreen ( true ); 
+			}
 		}
 	}
 }
@@ -839,10 +959,22 @@ void waitForIt ( int x1, int y1, int x2, int y2 ) // Draw a red frame while a bu
 }
 void feedingTimeOnOff () 
 {
-	if ( feedTime == 1 ) { FEEDTime = FEEDTime1; }
-	if ( feedTime == 2 ) { FEEDTime = FEEDTime2; }
-	if ( feedTime == 3 ) { FEEDTime = FEEDTime3; }
-	if ( feedTime == 4 ) { FEEDTime = FEEDTime4; }
+	if ( feedTime == 1 ) 
+	{ 
+		FEEDTime = FEEDTime1; 
+	}
+	if ( feedTime == 2 ) 
+	{ 
+		FEEDTime = FEEDTime2; 
+	}
+	if ( feedTime == 3 ) 
+	{ 
+		FEEDTime = FEEDTime3; 
+	}
+	if ( feedTime == 4 ) 
+	{ 
+		FEEDTime = FEEDTime4; 
+	}
 	if ( ( FEEDTime == 1 ) ) 
 	{
 		tft.fillRoundRect ( 70, 150, 180, 20 , 20/8, ILI9341_GREEN );
@@ -932,10 +1064,23 @@ void screenSaver ()  //Make the Screen Go Blank after so long
 {
 	if ( ( setScreensaver == 1 ) && ( tempAlarmflag == false ) ) 
 	{
-		if (ctp.touched () ) { processMyTouch (); screenSaverRunning = false; screenSaverTimer = 0; } 
-		else { screenSaverTimer++; }
-		if ( screenSaverTimer == setScreenSaverTimer ) { dispScreen = 0;
-			tft.fillScreen(ILI9341_BLACK); tft.setCursor(20, 120); screenSaverRunning = true; }
+		if (ctp.touched () ) 
+		{ 
+			processMyTouch (); 
+			screenSaverRunning = false; 
+			screenSaverTimer = 0; 
+		} 
+		else 
+		{ 
+			screenSaverTimer++; 
+		}
+		if ( screenSaverTimer == setScreenSaverTimer ) 
+		{ 
+			dispScreen = 0;
+			tft.fillScreen(ILI9341_BLACK); 
+			tft.setCursor(20, 120); 
+			screenSaverRunning = true; 
+		}
 		if ( CLOCK_SCREENSAVER == true ) 
 		{ 
 			if ( screenSaverTimer > setScreenSaverTimer )
@@ -952,11 +1097,12 @@ void screenSaver ()  //Make the Screen Go Blank after so long
 			returnTimer = 0;
 			screenSaverTimer = 0;
 			screenSaverRunning = false;
-			clearScreen();
+			// clearScreen(); // remarked out for testing nessecity.
 			mainScreen( true );
 		}
 		else
 		{
+			// TODO: Issue#12 rethink this routine, not sure if nessasary. Think this is source of issue
 			returnTimer = 0;
 			screenSaverTimer = 0;
 			screenSaverRunning = false;
@@ -1055,16 +1201,41 @@ int calculateDayOfYear(int daym, int monthm, int yearm)
 {
   // Given a day, month, and year (4 digit), returns 
   // the day of year. Errors return 999.
-  int daysInMonth[] = {31,28,31,30,31,30,31,31,30,31,30,31};
-  if (yearm < 1000) { return 999; } // Verify we got a 4-digit year
-  
-  if (yearm%4  == 0) { if (yearm%100 != 0) { daysInMonth[1] = 29; } // Check if it is a leap year
-    else { if (yearm%400 == 0) { daysInMonth[1] = 29; } } }
+	int daysInMonth[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+	if (yearm < 1000) 
+	{ 
+		return 999; 
+	} // Verify we got a 4-digit year
+  	if (yearm%4  == 0) 
+  	{ 
+  		if (yearm%100 != 0) 
+  		{ 
+  			daysInMonth[1] = 29; 
+  		} // Check if it is a leap year
+   	else 
+   	{ 
+   		if (yearm%400 == 0) 
+   		{ 
+   			daysInMonth[1] = 29; 
+   		} 
+   	} 
+   }
   // Make sure we are on a valid day of the month
-  if (daym < 1) { return 999; } else if (daym > daysInMonth[monthm-1]) { return 999; }
-  int doy = 0;
-  for (int i = 0; i < monthm - 1; i++) { doy += daysInMonth[i]; }
-  doy += daym; return doy;
+	if (daym < 1) 
+	{ 
+		return 999; 
+	} 
+	else if (daym > daysInMonth[monthm-1]) 
+	{ 
+		return 999; 
+	}
+	int doy = 0;
+	for (int i = 0; i < monthm - 1; i++) 
+	{ 
+		doy += daysInMonth[i]; 
+	}
+	doy += daym; 
+	return doy;
 }
 
 void waterFilterTimer ()
@@ -1085,7 +1256,9 @@ void waterFilterTimer ()
 						tft.fillRect ( 216, 80, 16, 22, ILI9341_BLACK ); setFont ( LARGE, ILI9341_YELLOW );
 						printVar ( filterOffMinutes, 216, 80 ); printTxt (":", 230, 80 ); 
 						tft.fillRect ( 242, 80, 34, 22, ILI9341_BLACK ); setFont ( LARGE, ILI9341_YELLOW );
-						if (filterOffSeconds < 10) { setFont ( LARGE, ILI9341_YELLOW ); 
+						if (filterOffSeconds < 10) 
+						{ 
+							setFont ( LARGE, ILI9341_YELLOW ); 
 							printTxt ("0", 242, 80 ); printVar (filterOffSeconds, 260, 80 ); 
 						}
 						else 
@@ -1107,9 +1280,20 @@ void waterFilterTimer ()
 }		
 void stepDown() 
 {
-	if (filterOffSeconds > 0) { filterOffSeconds -= 1; }
- 	else { if (filterOffMinutes > 0) { filterOffSeconds = 59; filterOffMinutes -= 1; } 
- 		else {}
+	if (filterOffSeconds > 0) 
+	{ 
+		filterOffSeconds -= 1; 
+	}
+ 	else 
+ 	{ 
+ 		if (filterOffMinutes > 0) 
+ 		{ 
+ 			filterOffSeconds = 59; filterOffMinutes -= 1; 
+ 		} 
+ 		else 
+ 		{
+
+ 		}
 	}	
 }
 
@@ -1126,6 +1310,7 @@ void fiveSecDelayToUpdateScreen ()
 			TimeDateBar (); //Serial.println("Print TimeDateBar");
 		}
 		checkTempC(); //Serial.println("Check Water Temp");
+		serialOutput (); Serial.print ( "5sec Water Temp = "); Serial.println (  tempW );
 		lights();
 		screenReturn ();
 		screenSaver ();
@@ -1142,23 +1327,76 @@ void fiveSecDelayToUpdateScreen ()
 /******************************** MENU TEMPLATE SCREEN ********************************/
 void menuTemplate () 
 {
-	if ( dispScreen == 1 ) { printHeader ( "Choose Option " ); }
-	if ( dispScreen == 2 ) { printHeader ( "Time and Date Settings" ); }
-	if ( dispScreen == 3 ) { printHeader ( "H2O Temperature Control Settings" ); }
-	if ( dispScreen == 4 ) { printHeader ( "Light Contol Page"); }
-	if ( dispScreen == 4 && lightTime == 1 ) { printHeader ( "Set Light On Time" ); }
-	if ( dispScreen == 4 && lightTime == 2 ) { printHeader ( "Set Light Off Time" ); }
-	if ( dispScreen == 12 ) { printHeader ( "View/Change General Settings" ); }
-	if ( dispScreen == 13 ) { printHeader ( "Automatic Fish Feeder Page" ); }
-	if ( dispScreen == 14 && feedTime == 1 ) { printHeader ( "Set Feeding Time 1" ); }
-	if ( dispScreen == 14 && feedTime == 2 ) { printHeader ( "Set Feeding Time 2" ); }
-	if ( dispScreen == 14 && feedTime == 3 ) { printHeader ( "Set Feeding Time 3" ); }
-	if ( dispScreen == 14 && feedTime == 4 ) { printHeader ( "Set Feeding Time 4" ); }
-	if ( dispScreen == 15 ) { printHeader ( "Maintenance Menu" ); }
+	if ( dispScreen == 1 ) 
+	{ 
+		printHeader ( "Choose Option " ); 
+	}
+	if ( dispScreen == 2 ) 
+	{ 
+		printHeader ( "Time and Date Settings" ); 
+	}
+	if ( dispScreen == 3 ) 
+	{ 
+		printHeader ( "H2O Temperature Control Settings" ); 
+	}
+	if ( dispScreen == 4 ) 
+	{ 
+		printHeader ( "Light Contol Page"); 
+	}
+	if ( dispScreen == 4 && lightTime == 1 ) 
+	{ 
+		printHeader ( "Set Light On Time" ); 
+	}
+	if ( dispScreen == 4 && lightTime == 2 ) 
+	{ 
+		printHeader ( "Set Light Off Time" ); 
+	}
+	if ( dispScreen == 12 ) 
+	{ 
+		printHeader ( "View/Change General Settings" ); 
+	}
+	if ( dispScreen == 13 ) 
+	{ 
+		printHeader ( "Automatic Fish Feeder Page" ); 
+	}
+	if ( dispScreen == 14 && feedTime == 1 ) 
+	{ 
+		printHeader ( "Set Feeding Time 1" ); 
+	}
+	if ( dispScreen == 14 && feedTime == 2 ) 
+	{ 
+		printHeader ( "Set Feeding Time 2" ); 
+	}
+	if ( dispScreen == 14 && feedTime == 3 ) 
+	{ 
+		printHeader ( "Set Feeding Time 3" ); 
+	}
+	if ( dispScreen == 14 && feedTime == 4 ) 
+	{ 
+		printHeader ( "Set Feeding Time 4" ); 
+	}
+	if ( dispScreen == 15 ) 
+	{ 
+		printHeader ( "Maintenance Menu" ); 
+	}
+	if ( dispScreen == 16 ) 
+	{ 
+		printHeader ( "Water Change Contol" ); 
+	}
+	if ( dispScreen == 17 )	
+	{ 
+		printHeader ( "Reminder Settings" ); 
+	}
 	printButton ( "CANCEL", canC [0], canC [1], canC [2], canC [3], SMALL );
 	tft.drawRect ( 0, 196, 319, 2,  ILI9341_GRAY );
-	if (dispScreen != 1 ) { printButton ( "<< BACK >>", back [0], back [1], back [2], back [3], SMALL );
-		if (dispScreen != 13) { printButton ( "SAVE", prSAVE [0], prSAVE [1], prSAVE [2], prSAVE [3], SMALL ); } }
+	if (dispScreen != 1 ) 
+	{ 
+		printButton ( "<< BACK >>", back [0], back [1], back [2], back [3], SMALL );
+		if ( ( dispScreen != 13 ) && ( dispScreen != 16 ) ) 
+		{ 
+			printButton ( "SAVE", prSAVE [0], prSAVE [1], prSAVE [2], prSAVE [3], SMALL ); 
+		} 
+	}
 }
 
 /*********************** MENU SCREEN ********** dispScreen = 1 ************************/
@@ -1170,7 +1408,7 @@ void menuScreen ()
 	printButton ( "H2O Temp Control", temC [0], temC [1], temC [2], temC [3] );
 	printButton ( "General Settings", gSet [0], gSet [1], gSet [2], gSet [3] );
 	printButton ( "Automatic Feeder", aFeed [0], aFeed [1], aFeed [2], aFeed [3] );
-	printButton ( "Maintenace", maint [0], maint [1], maint [2], maint [3] );
+	printButton ( "Maintenace Menu", maint [0], maint [1], maint [2], maint [3] );
 	printButton ( "Light Control", liteS [0], liteS [1], liteS [2], liteS [3] );
 }	
 
@@ -1267,37 +1505,94 @@ void timeChange ()
 void buildCorrectTime () 
 {
 	char minute [3], hour1 [3], ampm [4];
-	if ( ( timeDispM >= 0 ) && ( timeDispM <= 9 ) ) { sprintf ( minute, "%i%i", 0, timeDispM ); } //adds 0 to minutes
-	else { sprintf ( minute, "%i", timeDispM ); } 
-	if ( setTimeFormat == 1 ) { if ( timeDispH == 0 ) { sprintf ( hour1, "%i", 12 ); } //12 HR Format
-		else 	{	if ( timeDispH > 12 ) { sprintf ( hour1, "%i", timeDispH - 12 ); } 
-					else { sprintf ( hour1, "%i", timeDispH ); } } }	
-	if ( timeDispH < 12 ) { sprintf ( ampm, " AM" ); AM_PM = 1; } //Adding the AM/PM sufffix
-	else { sprintf ( ampm, " PM" ); AM_PM = 2; } 
-	if ( setTimeFormat == 1 ) { sprintf ( time, "%s:%s%s", hour1, minute, ampm ); }
-	else { sprintf ( time, "%i:%s", timeDispH, minute ); }
+	if ( ( timeDispM >= 0 ) && ( timeDispM <= 9 ) ) 
+	{ 
+	sprintf ( minute, "%i%i", 0, timeDispM ); 
+	} //adds 0 to minutes
+	else 
+	{ 
+		sprintf ( minute, "%i", timeDispM ); 
+	} 
+	if ( setTimeFormat == 1 ) 
+	{ 
+		if ( timeDispH == 0 ) 
+		{ 
+			sprintf ( hour1, "%i", 12 ); 
+		} //12 HR Format
+		else 	
+		{	
+			if ( timeDispH > 12 ) 
+			{ 
+				sprintf ( hour1, "%i", timeDispH - 12 ); 
+			} 
+			else 
+			{ 
+				sprintf ( hour1, "%i", timeDispH ); 
+			} 
+		} 
+	}	
+	if ( timeDispH < 12 ) 
+	{ 
+		sprintf ( ampm, " AM" ); AM_PM = 1; 
+	} //Adding the AM/PM sufffix
+	else 
+	{ 
+		sprintf ( ampm, " PM" ); AM_PM = 2; 
+	} 
+	if ( setTimeFormat == 1 ) 
+	{ 
+		sprintf ( time, "%s:%s%s", hour1, minute, ampm ); 
+	}
+	else 
+	{ 
+		sprintf ( time, "%i:%s", timeDispH, minute ); 
+	}
 
 //  second time display for light setting screen
 	if ( dispScreen == 4 )
 	{
 		char minute2 [3], hour11 [3], ampm1 [4];
-		if ( ( timeDispM1 >= 0 ) && ( timeDispM1 <= 9 ) ) { sprintf ( minute2, "%i%i", 0, timeDispM1 ); } //adds 0 to minutes 
-		else { sprintf ( minute2, "%i", timeDispM1 ); }
+		if ( ( timeDispM1 >= 0 ) && ( timeDispM1 <= 9 ) ) 
+		{ 
+			sprintf ( minute2, "%i%i", 0, timeDispM1 ); 
+		} //adds 0 to minutes 
+		else 
+		{ 
+			sprintf ( minute2, "%i", timeDispM1 ); 
+		}
 		if ( setTimeFormat == 1 ) 
 		{
-			if ( timeDispH1 == 0 ) { sprintf ( hour11, "%i", 12 ); } //12 HR Format
+			if ( timeDispH1 == 0 ) 
+			{ 
+			sprintf ( hour11, "%i", 12 ); 
+			} //12 HR Format
 			else 
 			{
-				if ( timeDispH1 > 12 ) { sprintf ( hour11, "%i", timeDispH1 - 12 ); }
-				else { sprintf ( hour11, "%i", timeDispH1 ); }
+				if ( timeDispH1 > 12 ) 
+				{ 
+					sprintf ( hour11, "%i", timeDispH1 - 12 ); 
+				}
+				else 
+				{ 
+					sprintf ( hour11, "%i", timeDispH1 ); 
+				}
 			}
 			if ( timeDispH1 < 12 )  //Adding the AM/PM sufffix
 			{
 				sprintf ( ampm, " AM" ); AM_PM = 1;
 			}              
-			else { sprintf ( ampm, " PM" ); AM_PM = 2; }
-			if ( setTimeFormat == 1 ) { sprintf ( time1, "%s:%s%s", hour11, minute2, ampm ); }
-			else { sprintf ( time1, "%i:%s", timeDispH1, minute2 ); }
+			else 
+			{ 
+				sprintf ( ampm, " PM" ); AM_PM = 2; 
+			}
+			if ( setTimeFormat == 1 ) 
+			{ 
+				sprintf ( time1, "%s:%s%s", hour11, minute2, ampm ); 
+			}
+			else 
+			{ 
+				sprintf ( time1, "%i:%s", timeDispH1, minute2 ); 
+			}
 		}
 	}	
 }
@@ -1403,10 +1698,12 @@ void lights()
 	if ( ( lightTime1H > rtc [2] ) || ( lightTime1H == rtc [2] ) && ( lightTime1M > rtc [1] )
 	|| ( lightTime2H == rtc [2] ) && ( lightTime2M <= rtc [1] ) || ( lightTime2H < rtc [2] ) ) 
 	{
- 		digitalWrite(LIGHTS_PWR,HIGH); Lights_On_Flag = false; } // Turn Off Lights
+ 		digitalWrite(LIGHTS_PWR,HIGH); Lights_On_Flag = false; 
+ 	} // Turn Off Lights
   	else 
   	{ 
-	   digitalWrite(LIGHTS_PWR,LOW); Lights_On_Flag = true; } //Turn On Lights
+	   digitalWrite(LIGHTS_PWR,LOW); Lights_On_Flag = true; 
+	} //Turn On Lights
 } 
 
 /******** GENERAL SETTINGS SCREEN ************* dispScreen = 12 ***********************/
@@ -1467,11 +1764,23 @@ void autoFeederScreen ()
 		setFont ( SMALL, ILI9341_BLACK );
 		tft.setCursor ( 34, 24 ); tft.print (F( "Feeding Time 1" ));
 		timeDispH = feedFish1H; timeDispM = feedFish1M;
-		if ( setTimeFormat == 0 ) { xTimeH = 45; } 
-		if ( setTimeFormat == 1 ) { xTimeH = 16; }
+		if ( setTimeFormat == 0 ) 
+		{ 
+			xTimeH = 45; 
+		} 
+		if ( setTimeFormat == 1 ) 
+		{ 
+			xTimeH = 16; 
+		}
 		ReadFromEEPROM ();
-		if ( ( timeDispH >= 0 ) && ( timeDispH <= 11 ) ) { AM_PM = 1; } 
-		else { AM_PM = 2; }
+		if ( ( timeDispH >= 0 ) && ( timeDispH <= 11 ) ) 
+		{ 
+			AM_PM = 1; 
+		} 
+		else 
+		{ 
+			AM_PM = 2; 
+		}
 		yTime = 58; xColon = xTimeH + 42; xTimeM10 = xTimeH + 48; xTimeM1 = xTimeH + 64; xTimeAMPM = xTimeH + 96;
 		timeCorrectFormat ();
 	}	
@@ -1492,11 +1801,23 @@ void autoFeederScreen ()
 		timeDispH = feedFish2H;
 		timeDispM = feedFish2M;
 
-		if ( setTimeFormat == 0 ) { xTimeH = 200; }
-		if ( setTimeFormat == 1 ) { xTimeH = 176; }
+		if ( setTimeFormat == 0 ) 
+		{ 
+			xTimeH = 200; 
+		}
+		if ( setTimeFormat == 1 ) 
+		{ 
+			xTimeH = 176; 
+		}
 		ReadFromEEPROM ();
-		if ( ( timeDispH >= 0 ) && ( timeDispH <= 11 ) ) { AM_PM = 1; } 
-		else { AM_PM = 2; }	
+		if ( ( timeDispH >= 0 ) && ( timeDispH <= 11 ) ) 
+		{ 
+			AM_PM = 1; 
+		} 
+		else 
+		{ 
+			AM_PM = 2; 
+		}	
 		yTime = 56; xColon = xTimeH + 32; xTimeM10 = xTimeH + 48; xTimeM1 = xTimeH + 64; xTimeAMPM = xTimeH + 96;
 		timeCorrectFormat ();
 	}	
@@ -1518,8 +1839,14 @@ void autoFeederScreen ()
 		if ( setTimeFormat == 0 ) { xTimeH = 45; }
 		if ( setTimeFormat == 1 ) { xTimeH = 16; }
 		ReadFromEEPROM ();
-		if ( ( timeDispH >= 0 ) && ( timeDispH <= 11 ) ) { AM_PM = 1; }
-		else { AM_PM = 2; }	 
+		if ( ( timeDispH >= 0 ) && ( timeDispH <= 11 ) ) 
+		{ 
+			AM_PM = 1; 
+		}
+		else 
+		{ 
+			AM_PM = 2; 
+		}	 
 		yTime = 136; xColon = xTimeH + 42; xTimeM10 = xTimeH + 63; xTimeM1 = xTimeH + 64; xTimeAMPM = xTimeH + 96;
 		timeCorrectFormat ();
 	}	
@@ -1538,11 +1865,23 @@ void autoFeederScreen ()
 		setFont ( SMALL, ILI9341_BLACK );
 		tft.setCursor ( 194, 172 ); tft.print (F( "Feeding Time 4" ));
 		timeDispH = feedFish4H; timeDispM = feedFish4M;
-		if ( setTimeFormat == 0 ) { xTimeH = 200; }
-		if ( setTimeFormat == 1 ) { xTimeH = 176; }
+		if ( setTimeFormat == 0 ) 
+		{ 
+			xTimeH = 200; 
+		}
+		if ( setTimeFormat == 1 ) 
+		{ 
+			xTimeH = 176; 
+		}
 		ReadFromEEPROM ();
-		if ( ( timeDispH >= 0 ) && ( timeDispH <= 11 ) ) { AM_PM = 1; }
-		else { AM_PM = 2; }	
+		if ( ( timeDispH >= 0 ) && ( timeDispH <= 11 ) ) 
+		{ 
+			AM_PM = 1; 
+		}
+		else 
+		{ 
+			AM_PM = 2; 
+		}	
 		yTime = 137; xColon = xTimeH + 32; xTimeM10 = xTimeH + 48; xTimeM1 = xTimeH + 64; xTimeAMPM = xTimeH + 96;
 		timeCorrectFormat ();
 	}	
@@ -1686,11 +2025,26 @@ void setFeederTimesScreen ( boolean refreshAll = true )
 	xTimeH = 118; yTime = 68; xColon = xTimeH + 82; xTimeM10 = xTimeH + 80; xTimeM1 = xTimeH + 96; xTimeAMPM = xTimeH + 175;
 	timeChange ();
 }
-
-/************** MAINTENANCE SCREEN ****************** dispScreen = 15 ***********************/
-
-//TODO: Add in routine to display "Days"	& to process Alarm reset.
-
+/************************* MAINTENANCE MENU ****************** dispScreen = 15 ***********************/
+void maintMenu ()
+{
+	menuTemplate ();
+	setFont ( SMALL, ILI9341_WHITE );
+	printButton ( "Water Change", watrC [0], watrC [1], watrC [2], watrC [3], SMALL); // Water Change button
+	printButton ( "Maint Reminders", mainR [0], mainR [1], mainR [2], mainR [3], SMALL); // Maint Remider button
+}
+/************** WATER CHANGE CONTROL SCREEN ****************** dispScreen = 16 ***********************/
+void waterChangeControl ()
+{
+// TODO: Correct font & position of static text
+	menuTemplate ();
+	setFont ( SMALL, ILI9341_WHITE );
+	printTxt ( "This function turns off", 110, 30 );
+	printTxt ( "the water filter & heater", 109, 50 );
+	printButton ( "OFF", watOff [0], watOff [1], watOff [2], watOff [3], SMALL ); // Start - turns water filter & heater off
+	printButton ( "FINISHED", watOn [0], watOn [1], watOn [2], watOn [3], SMALL ); // Finished - turns water filter & heater on
+}
+/************** MAINTENANCE REMINDER SCREEN ****************** dispScreen = 17 ***********************/
 void maintSettingScreen () 
 {
 	menuTemplate ();
@@ -1736,8 +2090,7 @@ void processMyTouch ()
 		ReadFromEEPROM (); dispScreen = 0; clearScreen (); mainScreen ( true );
 	}
 	else if ( ( x >= back [0] ) && ( x <= ( back [0] + back [2] ) ) && ( y >= back [1] ) && ( y <= ( back [1] + back [3] ) )  //press back
-			&& ( dispScreen != 0 ) && ( dispScreen != 1 ) && ( dispScreen != 5 ) && ( dispScreen != 6 ) && ( dispScreen != 8 ) && ( dispScreen != 11 )
-			&& ( dispScreen != 14 ) && ( dispScreen != 18 ) && ( dispScreen != 19 ) ) 
+			&& ( dispScreen != 0 ) && ( dispScreen != 1 ) )
 	{
 		waitForIt ( back [0], back [1], back [2], back [3] );
 		ReadFromEEPROM (); dispScreen = MENUSCREEN_ONE; clearScreen (); menuScreen (); 		
@@ -1800,7 +2153,7 @@ void processMyTouch ()
 						waitForIt ( maint [0], maint [1], maint [2], maint [3] );
 						dispScreen = 15;
 						clearScreen ();
-						maintSettingScreen ();
+						maintMenu ();
 					}
 					if ( ( y >= liteS [1] ) && ( y <= ( liteS [1] + liteS [3] ) ) ) //press Lights Settings
 					{
@@ -2397,10 +2750,49 @@ void processMyTouch ()
 				else if ( ( x >= 70 ) && ( x <= 250 ) && ( y >= 150 ) && ( y <= 170 ) ) //Feeding ON/OFF
 				{
 					waitForIt ( 70, 150, 180, 20 );
-					if ( feedTime == 1 ) { if ( FEEDTime1 == 1 ) { FEEDTime1 = 0; } else { FEEDTime1 = 1; } }
-					if ( feedTime == 2 ) { if ( FEEDTime2 == 1 ) { FEEDTime2 = 0; } else { FEEDTime2 = 1; } }
-					if ( feedTime == 3 ) { if ( FEEDTime3 == 1 ) { FEEDTime3 = 0; } else { FEEDTime3 = 1; } }
-					if ( feedTime == 4 ) { if ( FEEDTime4 == 1 ) { FEEDTime4 = 0; } else { FEEDTime4 = 1; } }
+					if ( feedTime == 1 ) 
+					{ 
+						if ( FEEDTime1 == 1 ) 
+						{ 
+							FEEDTime1 = 0; 
+						} 
+						else 
+						{ 
+							FEEDTime1 = 1; } 
+						}
+					if ( feedTime == 2 ) 
+					{ 
+						if ( FEEDTime2 == 1 ) 
+						{ 
+							FEEDTime2 = 0; 
+						} 
+						else 
+						{ 
+							FEEDTime2 = 1; 
+						} 
+					}
+					if ( feedTime == 3 ) 
+					{ 
+						if ( FEEDTime3 == 1 ) 
+						{ 
+							FEEDTime3 = 0; 
+						} 
+						else 
+						{ 
+							FEEDTime3 = 1; 
+						} 
+					}
+					if ( feedTime == 4 ) 
+					{ 
+						if ( FEEDTime4 == 1 ) 
+						{ 
+							FEEDTime4 = 0; 
+						} 
+						else 
+						{ 
+							FEEDTime4 = 1; 
+						} 
+					}
 					feedingTimeOnOff ();
 				}
 				else 
@@ -2410,12 +2802,20 @@ void processMyTouch ()
 						if ( ( x >= houP [0] ) && ( x <= ( houP [0] + houP [2] ) ) ) //press hour up
 						{
 							waitForIt ( houP [0], houP [1], houP [2], houP [3] );
-							rtcSet [2]++; if ( rtcSet [2] >= 24 ) { rtcSet [2] = 0; }
+							rtcSet [2]++; 
+							if ( rtcSet [2] >= 24 ) 
+							{ 
+								rtcSet [2] = 0; 
+							}
 						}
 						if ( ( x >= minP [0] ) && ( x <= ( minP [0] + minP [2] ) ) ) //press min up
 						{
 							waitForIt ( minP [0], minP [1], minP [2], minP [3] );
-							rtcSet [1]++; if ( rtcSet [1] >= 60 ) { rtcSet [1] = 0; }
+							rtcSet [1]++; 
+							if ( rtcSet [1] >= 60 ) 
+							{ 
+								rtcSet [1] = 0; 
+							}
 						}
 						
 					}
@@ -2424,19 +2824,74 @@ void processMyTouch ()
 						if ( ( x >= houM [0] ) && ( x <= ( houM [0] + houM [2] ) ) ) //press hour down
 						{
 							waitForIt ( houM [0], houM [1], houM [2], houM [3] );
-							rtcSet [2]--; if ( rtcSet [2] < 0 ) { rtcSet [2] = 23; }
+							rtcSet [2]--; 
+							if ( rtcSet [2] < 0 ) 
+							{ 
+								rtcSet [2] = 23; 
+							}
 						}
 						if ( ( x >= minM [0] ) && ( x <= ( minM [0] + minM [2] ) ) ) //press min down
 						{
 							waitForIt ( minM [0], minM [1], minM [2], minM [3] );
-							rtcSet [1]--; if ( rtcSet [1] < 0 ) { rtcSet [1] = 59; }
+							rtcSet [1]--; 
+							if ( rtcSet [1] < 0 ) 
+							{ 
+								rtcSet [1] = 59; 
+							}
 						}
 				
 					}
 					setFeederTimesScreen ( false );
 				}
 				break;
-			case 15 :  //----------------Maintenance Menu -----------------------
+			case 15 :  //--------------------------MAINTENANCE MENU ----------------------------------
+				if( ( x >= watrC [0] ) && ( x <= ( watrC [0] + watrC [2] ) ) )
+				{
+					if ( ( y >= watrC [1] ) && ( y <= ( watrC [1] + watrC [3] ) ) )
+					{ 
+						waitForIt ( watrC [0], watrC [1], watrC [2], watrC [3] );
+						dispScreen = 16;
+						clearScreen ();
+						waterChangeControl ();
+					}
+				}
+				if ( ( x >= mainR [0] ) && ( x <= ( mainR [0] + mainR [2] ) ) )
+				{
+					if ( ( y >= mainR [1] ) && ( y <= ( mainR [1] + mainR [3] ) ) )
+					{
+						waitForIt ( mainR [0], mainR [1], mainR [2], mainR [3] );					dispScreen = 17;
+						dispScreen = 17;
+						clearScreen ();
+						maintSettingScreen ();
+					}
+				}
+				break;				
+			case 16 :  //------------------------- WATER CHANGE CONTROL ------------------------------
+			// TODO build screen with buttons to turn water filter/heater on/off
+				if ( ( x >= watOff [0] ) && ( x <= ( watOff [0] + watOff [2] ) ) )
+				{
+					if ( ( y >= watOff [1] ) && ( y <= ( watOff [1] + watOff [3] ) ) )
+					{
+						waitForIt ( watOff [0], watOff [1], watOff [2], watOff [3] );
+						// change color of selected button - Flashing while off???
+						allStopFlag = true;
+						digitalWrite ( WATER_FILTER_PWR, LOW );
+						digitalWrite ( HEATER_PWR, LOW );
+					}
+				}
+				if ( ( x >= watOn [0] ) && ( x <= ( watOn [0] + watOn [2] ) ) )
+				{
+					if ( ( y >= watOn [1] ) && ( y <= ( watOn [1] + watOn [3] ) ) )
+					{
+						waitForIt ( watOn [0], watOn [1], watOn [2], watOn [3] );
+						// change color of selected button - Flashing while off???
+						digitalWrite ( WATER_FILTER_PWR, HIGH );
+						allStopFlag = false;
+					}
+				}
+				break;
+
+			case 17 :  //------------------------- REMINDER SETTINGS ---------------------------------
 				if ( ( x >= prSAVE [0] ) && ( x <= ( prSAVE [0] + prSAVE [2] ) ) && ( y >= prSAVE [1] ) && ( y <= ( prSAVE [1] + prSAVE [3] ) ) )  //press SAVE
 				{
 					waitForIt ( prSAVE [0], prSAVE [1], prSAVE [2], prSAVE [3] );
@@ -2450,22 +2905,38 @@ void processMyTouch ()
 						if ( ( y >= day1D [1] ) && ( y <= ( day1D [1] + day1D [3] ) ) ) //y axis of day 1 Down Button
 								{
 							waitForIt ( day1D [0], day1D [1], day1D [2], day1D [3] ); //wait for button press
-							maint1D--; if ( maint1D < 0 ) { maint1D = 99; }
+							maint1D--; 
+							if ( maint1D < 0 ) 
+							{ 
+								maint1D = 99; 
+							}
 						}
 						if ( ( y >= day2D [1] ) && ( y <= ( day2D [1] + day2D [3] ) ) ) //y axis of day 2 Down Button
 								{
 							waitForIt ( day2D [0], day2D [1], day2D [2], day2D [3] ); //wait for button press
-							maint2D--; if ( maint2D < 0 ) { maint2D = 99; }
+							maint2D--; 
+							if ( maint2D < 0 ) 
+							{ 
+								maint2D = 99; 
+							}
 						}
 						if ( ( y >= day3D [1] ) && ( y <= ( day3D [1] + day3D [3] ) ) ) //y axis of day 3 Down Button
 								{
 							waitForIt ( day3D [0], day3D [1], day3D [2], day3D [3] ); //wait for button press
-							maint3D--; if ( maint3D < 0 ) { maint3D = 99; }						
+							maint3D--; 
+							if ( maint3D < 0 ) 
+							{ 
+								maint3D = 99; 
+							}						
 						}
 						if ( ( y >= day4D [1] ) && ( y <= ( day4D [1] + day4D [3] ) ) ) //y axis of day 4 Down Button
 								{
 							waitForIt ( day4D [0], day4D [1], day4D [2], day4D [3] ); //wait for button press
-							maint4D--; if ( maint4D < 0 ) { maint4D = 99; }						
+							maint4D--; 
+							if ( maint4D < 0 ) 
+							{ 
+								maint4D = 99; 
+							}						
 						}
 					}	
 					if ( ( x >= day1U [0] ) && ( x <= ( day1U [0] + day1U [2] ) ) ) //x axis of day Up Buttons
@@ -2473,43 +2944,59 @@ void processMyTouch ()
 						if ( ( y >= day1U [1] ) && ( y <= ( day1U [1] + day1U [3] ) ) ) //y axis of day 1 Up Button
 								{
 							waitForIt ( day1U [0], day1U [1], day1U [2], day1U [3] ); //wait for button press
-							maint1D++; if ( maint1D > 99 ) { maint1D= 0; }						
+							maint1D++; 
+							if ( maint1D > 99 ) 
+							{ 
+								maint1D= 0; 
+							}						
 						}
 						if ( ( y >= day2U [1] ) && ( y <= ( day2U [1] + day2U [3] ) ) ) //y axis of day 1 Up Button
 								{
 							waitForIt ( day2U [0], day2U [1], day2U [2], day2U [3] ); //wait for button press
-							maint2D++; if ( maint2D > 99 ) { maint2D = 0; }	
+							maint2D++; 
+							if ( maint2D > 99 ) 
+							{ 
+								maint2D = 0; 
+							}	
 						}
 						if ( ( y >= day3U [1] ) && ( y <= ( day3U [1] + day3U [3] ) ) ) //y axis of day 1 Up Button
 								{
 							waitForIt ( day3U [0], day3U [1], day3U [2], day3U [3] ); //wait for button press
-							maint3D++; if ( maint3D > 99 ) { maint3D = 0; }	
+							maint3D++; 
+							if ( maint3D > 99 ) 
+							{ 
+								maint3D = 0; 
+							}	
 						}
 						if ( ( y >= day4U [1] ) && ( y <= ( day4U [1] + day4U [3] ) ) ) //y axis of day 1 Up Button
 								{
 							waitForIt ( day4U [0], day4U [1], day4U [2], day4U [3] ); //wait for button press
-							maint4D++; if ( maint4D > 99 ) { maint4D = 0; }	
+							maint4D++; 
+							if ( maint4D > 99 ) 
+							{ 
+								maint4D = 0; 
+							}	
 						}
 					}	
 					if ( ( x >= day1R [0] ) && ( x <= ( day1R [0] + day1R [2] ) ) ) //x axis of Reset Buttons
 					{
 						if ( ( y >= day1R [1] ) && ( y <= ( day1R [1] + day1R [3] ) ) ) //y axis of Day 1 Reset Button
-								{
+						{
 							waitForIt ( day1R [0], day1R [1], day1R [2], day1R [3] );
 							doy1C = (doyC + maint1D); //update with new DOY
 						}
 						if ( ( y >= day2R [1] ) && ( y <= ( day2R [1] + day2R [3] ) ) ) //y axis of Day 2 Reset Button
-								{
+						{
 							waitForIt ( day2R [0], day2R [1], day2R [2], day2R [3] );	
 							doy2C = (doyC + maint2D); //update with new DOY
 						}
 						if ( ( y >= day3R [1] ) && ( y <= ( day3R [1] + day3R [3] ) ) ) //y axis of Day 3 Reset Button
-								{
+						{
 							waitForIt ( day3R [0], day3R [1], day3R [2], day3R [3] );	
 							doy3C = (doyC + maint3D); //update with new DOY
 						}
 						if ( ( y >= day4R [1] ) && ( y <= ( day4R [1] + day4R [3] ) ) ) //y axis of Day 4 Reset Button
-								{
+						{
 							waitForIt ( day4R [0], day4R [1], day4R [2], day4R [3] );	
 							doy4C = (doyC + maint4D); //update with new DOY
 						}
@@ -2517,6 +3004,8 @@ void processMyTouch ()
 					}
 					maintSettingScreen ();
 				}
+				break;	
+				
 		}
 	}	
 }
@@ -2539,7 +3028,8 @@ void setup()
 	tft.begin(); Serial.println ("Start TFT");		
 	tft.setRotation( ROTATION ); Serial.println("Set Screen Orientation");
 
-	if ( checkTemp ){
+	if ( checkTemp )
+	{
 		sensors.begin(); Serial.println("Start Sensor Routine");    //start up temperature library
 		sensors.setResolution ( waterThermometer, TEMERATURE_PRECISION );	// set the resolution to 9 bit
 	}
@@ -2570,7 +3060,10 @@ void loop()
 	}
 	else 
 	{
-		if ( ctp.touched() ) { processMyTouch(); }
+		if ( ctp.touched() ) 
+		{ 
+			processMyTouch(); 
+		}
 	}
 	waterFilterTimer ();
 	fiveSecDelayToUpdateScreen ();
