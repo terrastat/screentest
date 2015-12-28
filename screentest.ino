@@ -924,6 +924,7 @@ void printctr ( char* ctrtxt, int fy )
 	int fx;
 	fx = 1 + ( ( 318 / 2 ) - ( ( stl * 6 ) / 2) );
 	tft.setCursor ( fx, fy );
+	tft.printf ( ctrtxt );
 }
 
 void printHeader ( char* headline ) 
@@ -937,7 +938,7 @@ void printHeader ( char* headline )
 	tft.setCursor ( fx, fy);
 	tft.setTextSize ( SMALL );
 	tft.setTextColor(ILI9341_BLACK);
-	tft.printf( headline );
+	tft.printf ( headline );
 	
 }
 void setFont ( boolean font,  int uint16_t) 
@@ -1251,8 +1252,6 @@ void waterFilterTimer ()
 				{
 					if ( screenSaverRunning == false ) 
 					{
-						// tft.fillRect ( 170, 20, 142, 16, ILI9341_BLACK ); setFont ( MEDIUM, ILI9341_YELLOW );	printTxt ( "Water Filter", 170, 20 );
-						// tft.fillRect ( 180, 46, 120, 16, ILI9341_BLACK ); printTxt ( "Back On in", 180, 46 );
 						tft.fillRect ( 216, 80, 16, 22, ILI9341_BLACK ); setFont ( LARGE, ILI9341_YELLOW );
 						printVar ( filterOffMinutes, 216, 80 ); printTxt (":", 230, 80 ); 
 						tft.fillRect ( 242, 80, 34, 22, ILI9341_BLACK ); setFont ( LARGE, ILI9341_YELLOW );
@@ -1268,7 +1267,6 @@ void waterFilterTimer ()
 					}
 					if ( screenSaverRunning == true )
 					{
-						// tft.fillRect ( 170, 20, 142, 16, ILI9341_BLACK ); tft.fillRect ( 180, 46, 120, 16, ILI9341_BLACK );
 						tft.fillRect ( 216, 80, 16, 22, ILI9341_BLACK ); tft.fillRect ( 230, 80, 58, 22, ILI9341_BLACK );
 					}
 				}					 
@@ -2036,11 +2034,10 @@ void maintMenu ()
 /************** WATER CHANGE CONTROL SCREEN ****************** dispScreen = 16 ***********************/
 void waterChangeControl ()
 {
-// TODO: Correct font & position of static text
 	menuTemplate ();
 	setFont ( SMALL, ILI9341_WHITE );
-	printTxt ( "This function turns off", 110, 30 );
-	printTxt ( "the water filter & heater", 109, 50 );
+	printctr ( "This function turns off", 30 );
+	printctr ( "the water filter & heater", 50 );
 	printButton ( "OFF", watOff [0], watOff [1], watOff [2], watOff [3], SMALL ); // Start - turns water filter & heater off
 	printButton ( "FINISHED", watOn [0], watOn [1], watOn [2], watOn [3], SMALL ); // Finished - turns water filter & heater on
 }
@@ -2867,7 +2864,6 @@ void processMyTouch ()
 				}
 				break;				
 			case 16 :  //------------------------- WATER CHANGE CONTROL ------------------------------
-			// TODO build screen with buttons to turn water filter/heater on/off
 				if ( ( x >= watOff [0] ) && ( x <= ( watOff [0] + watOff [2] ) ) )
 				{
 					if ( ( y >= watOff [1] ) && ( y <= ( watOff [1] + watOff [3] ) ) )
