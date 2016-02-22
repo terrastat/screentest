@@ -14,23 +14,18 @@
 
 //Arduino MEGA pinout
 //Digital Pins
-#define FEEDER_PWR 5 
-#define WATER_FILTER_PWR 6    
-#define LIGHTS_PWR 7
 #define TFT_DC 9	//Touch Screen
 #define TFT_CS 10 	//Touch Screen
 #define ONE_WIRE_BUS 49  //Temp Sensor
 
 //Anaglog Pins
-#define HEATER_PWR 40
 #define RTC_GND A10
 #define RTC_PWR A11
-#define TEMP_SENSOR_PWR A14 
-#define OUTLET_BOX_PWR A8
+#define TEMP_SENSOR_PWR A14
 
 
 //Display Screen Variables
-#define VER 1.01
+#define VER 1.02
 #define ROTATION 3
 
 //Menu Screens
@@ -56,6 +51,13 @@
 #define CENTER 9998
 
 #define ILI9341_GRAY  0x4208
+
+const int OUTLET_BOX_PWR = A4;
+const int FEEDER_PWR = 5;
+const int WATER_FILTER_PWR = 6;
+const int LIGHTS_PWR = 8;
+const int HEATER_PWR = 7;
+
 
 //TOUCH PANEL & Adafruit ILI9341 
 // The FT6206 uses hardware I2C (SCL/SDA)
@@ -1696,11 +1698,11 @@ void lights()
 	if ( ( lightTime1H > rtc [2] ) || ( lightTime1H == rtc [2] ) && ( lightTime1M > rtc [1] )
 	|| ( lightTime2H == rtc [2] ) && ( lightTime2M <= rtc [1] ) || ( lightTime2H < rtc [2] ) ) 
 	{
- 		digitalWrite(LIGHTS_PWR,HIGH); Lights_On_Flag = false; 
+ 		digitalWrite(LIGHTS_PWR,LOW); Lights_On_Flag = false; 
  	} // Turn Off Lights
   	else 
   	{ 
-	   digitalWrite(LIGHTS_PWR,LOW); Lights_On_Flag = true; 
+	   digitalWrite(LIGHTS_PWR,HIGH); Lights_On_Flag = true; 
 	} //Turn On Lights
 } 
 
@@ -1894,112 +1896,115 @@ void autoFeederScreen ()
 
 void feedingTimeOutput () 
 {
-	if (feederMotorRunning == true ) 
+	if ( allStopFlag == false )
 	{
-		tenSecTimer++;
-		if ( tenSecTimer >= 3 ) 
+		if (feederMotorRunning == true ) 
 		{
-			feederMotorRunning = false;
-			RTC.get (rtc, true );
-			digitalWrite( FEEDER_PWR, HIGH ); //Turn off feeder
+			tenSecTimer++;
+			if ( tenSecTimer >= 3 ) 
+			{
+				feederMotorRunning = false;
+				RTC.get (rtc, true );
+				digitalWrite( FEEDER_PWR, LOW ); //Turn off feeder
+			}
 		}
-	}
-	if ( ( FEEDTimeNow == 1 )  && ( waterfilterStopped == false ) )
-	{	
-		Serial.println ( " Now Feeding ");
-		if ( setAutoStop == 1 )
-		{  
-			filterOffMinutes = 5; filterOffSeconds = 0;
-			WaterFilerCtrl_Now = true; waterfilterStopped = true;
-			// screenSaverTimer = 0; mainScreen ( true ); dispScreen = 0;
-			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
-		}
-		tenSecTimer = 0; 	feederMotorRunning = true;	
-		digitalWrite ( FEEDER_PWR, LOW ); // Turn on feeder
-	}
-	if ( WaterFilerCtrl_Now == true )
-	{
-		if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) ) 
+		if ( ( FEEDTimeNow == 1 )  && ( waterfilterStopped == false ) )
 		{	
-			FEEDTimeNow = 0; waterfilterStopped = false; 
-			digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+			Serial.println ( " Now Feeding ");
+			if ( setAutoStop == 1 )
+			{  
+				filterOffMinutes = 5; filterOffSeconds = 0;
+				WaterFilerCtrl_Now = true; waterfilterStopped = true;
+				// screenSaverTimer = 0; mainScreen ( true ); dispScreen = 0;
+				digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
+			}
+			tenSecTimer = 0; 	feederMotorRunning = true;	
+			digitalWrite ( FEEDER_PWR, HIGH ); // Turn on feeder
 		}
-	}
-	if ( ( FEEDTime1 == 1 ) && ( feedFish1H == rtc [2] ) && ( feedFish1M == rtc [1] ) && ( rtc [0] <= 5 ) ) 
-	{	
-		if ( setAutoStop == 1 )
-		{  
-			filterOffMinutes = 5; filterOffSeconds = 0;
-			WaterFilerCtrl_1 = true; waterfilterStopped = true;
-			// screenSaverTimer = 0; mainScreen ( true ); dispScreen = 0;
-			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
+		if ( WaterFilerCtrl_Now == true )
+		{
+			if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) ) 
+			{	
+				FEEDTimeNow = 0; waterfilterStopped = false; 
+				digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+			}
 		}
-		tenSecTimer = 0; 	feederMotorRunning = true;	
-		digitalWrite ( FEEDER_PWR, LOW ); // Turn on feeder
-	}
-	if ( WaterFilerCtrl_1 == true )
-	{
-		if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) ) 
+		if ( ( FEEDTime1 == 1 ) && ( feedFish1H == rtc [2] ) && ( feedFish1M == rtc [1] ) && ( rtc [0] <= 5 ) ) 
 		{	
-			waterfilterStopped = false; 
-			digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+			if ( setAutoStop == 1 )
+			{  
+				filterOffMinutes = 5; filterOffSeconds = 0;
+				WaterFilerCtrl_1 = true; waterfilterStopped = true;
+				// screenSaverTimer = 0; mainScreen ( true ); dispScreen = 0;
+				digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
+			}
+			tenSecTimer = 0; 	feederMotorRunning = true;	
+			digitalWrite ( FEEDER_PWR, HIGH ); // Turn on feeder
 		}
-	}
-	if ( ( FEEDTime2 == 1 ) && ( feedFish2H == rtc [2] ) && ( feedFish2M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
-	{
-		if ( setAutoStop == 1 )
-		{  
-			filterOffMinutes = 5; filterOffSeconds = 0;
-			WaterFilerCtrl_2 = true; waterfilterStopped = true; 
-			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
+		if ( WaterFilerCtrl_1 == true )
+		{
+			if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) ) 
+			{	
+				waterfilterStopped = false; 
+				digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+			}
 		}
-		tenSecTimer = 0; 	feederMotorRunning = true;	
-		digitalWrite ( FEEDER_PWR, LOW ); // Turn on feeder
-	}
-	if ( WaterFilerCtrl_2 == true )
-	{
-		if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) )
-		{	
-			waterfilterStopped = false; 
-			digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+		if ( ( FEEDTime2 == 1 ) && ( feedFish2H == rtc [2] ) && ( feedFish2M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
+		{
+			if ( setAutoStop == 1 )
+			{  
+				filterOffMinutes = 5; filterOffSeconds = 0;
+				WaterFilerCtrl_2 = true; waterfilterStopped = true; 
+				digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
+			}
+			tenSecTimer = 0; 	feederMotorRunning = true;	
+			digitalWrite ( FEEDER_PWR, HIGH ); // Turn on feeder
 		}
-	}
-	if ( ( FEEDTime3 == 1 ) && ( feedFish3H == rtc [2] ) && ( feedFish3M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
-	{
-		if ( setAutoStop == 1 )
-		{  
-			filterOffMinutes = 5; filterOffSeconds = 0;
-			WaterFilerCtrl_3 = true; waterfilterStopped = true; 
-			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
+		if ( WaterFilerCtrl_2 == true )
+		{
+			if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) )
+			{	
+				waterfilterStopped = false; 
+				digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+			}
 		}
-		tenSecTimer = 0; 	feederMotorRunning = true;	
-		digitalWrite ( FEEDER_PWR, LOW ); // Turn on feeder
-	}
-	if ( WaterFilerCtrl_3 == true )
-	{
-		if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) ) 
-		{	
-			waterfilterStopped = false; 
-			digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+		if ( ( FEEDTime3 == 1 ) && ( feedFish3H == rtc [2] ) && ( feedFish3M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
+		{
+			if ( setAutoStop == 1 )
+			{  
+				filterOffMinutes = 5; filterOffSeconds = 0;
+				WaterFilerCtrl_3 = true; waterfilterStopped = true; 
+				digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
+			}
+			tenSecTimer = 0; 	feederMotorRunning = true;	
+			digitalWrite ( FEEDER_PWR, HIGH ); // Turn on feeder
 		}
-	}
-	if ( ( FEEDTime4 == 1 ) && ( feedFish4H == rtc [2] ) && ( feedFish4M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
-	{
-		if ( setAutoStop == 1 )
-		{  
-			filterOffMinutes = 5; filterOffSeconds = 0;
-			WaterFilerCtrl_4 = true; waterfilterStopped = true; 
-			digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
+		if ( WaterFilerCtrl_3 == true )
+		{
+			if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) ) 
+			{	
+				waterfilterStopped = false; 
+				digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+			}
 		}
-		tenSecTimer = 0; 	feederMotorRunning = true;	
-		digitalWrite ( FEEDER_PWR, LOW ); // Turn on feeder
-	}
-	if ( WaterFilerCtrl_4 == true )
-	{
-		if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) )
-		{	
-			waterfilterStopped = false; 
-			digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+		if ( ( FEEDTime4 == 1 ) && ( feedFish4H == rtc [2] ) && ( feedFish4M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
+		{
+			if ( setAutoStop == 1 )
+			{  
+				filterOffMinutes = 5; filterOffSeconds = 0;
+				WaterFilerCtrl_4 = true; waterfilterStopped = true; 
+				digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
+			}
+			tenSecTimer = 0; 	feederMotorRunning = true;	
+			digitalWrite ( FEEDER_PWR, HIGH ); // Turn on feeder
+		}
+		if ( WaterFilerCtrl_4 == true )
+		{
+			if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) )
+			{	
+				waterfilterStopped = false; 
+				digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+			}
 		}
 	}
 }
@@ -3011,31 +3016,31 @@ void processMyTouch ()
 /************************************* Setup *****************************************/   
 void setup() 
 {
-	Serial.begin(9600); 	Serial.println("System Boot...");
-	pinMode(OUTLET_BOX_PWR, OUTPUT); digitalWrite(OUTLET_BOX_PWR, HIGH);
-	pinMode (WATER_FILTER_PWR, OUTPUT); digitalWrite(WATER_FILTER_PWR, HIGH); // Water Filter Motor 
-	pinMode (RTC_PWR, OUTPUT); digitalWrite(RTC_PWR, HIGH); //setup arduino to power RTC from analog pins (NEED TO MOVE POWER OFF OF THIS PIN)
-   pinMode(RTC_GND, OUTPUT); digitalWrite(RTC_GND, LOW); //setup arduino to power RTC from analog pins (NEED TO MOVE POEW OFF OF THIS PIN)
-   pinMode(FEEDER_PWR, OUTPUT); digitalWrite(FEEDER_PWR, HIGH);
-   pinMode (LIGHTS_PWR, OUTPUT ); digitalWrite ( LIGHTS_PWR, HIGH ); Lights_On_Flag = false ;// Tank Lights Power
-   pinMode ( TEMP_SENSOR_PWR, OUTPUT ); digitalWrite( TEMP_SENSOR_PWR, HIGH ); //Temp Sensor Power
- 
-	RTC.get(rtc, true); Serial.println( "Start RTC");
-	tft.begin(); Serial.println ("Start TFT");		
-	tft.setRotation( ROTATION ); Serial.println("Set Screen Orientation");
+	Serial.begin ( 9600 ); 	Serial.println ("System Boot...");
+	pinMode ( OUTLET_BOX_PWR, OUTPUT ); digitalWrite ( OUTLET_BOX_PWR, HIGH );
+	pinMode ( WATER_FILTER_PWR, OUTPUT ); digitalWrite ( WATER_FILTER_PWR, HIGH ); // Water Filter Motor 
+	pinMode ( RTC_PWR, OUTPUT ); digitalWrite ( RTC_PWR, HIGH ); //setup arduino to power RTC from analog pins (NEED TO MOVE POWER OFF OF THIS PIN)
+   pinMode ( RTC_GND, OUTPUT ); digitalWrite ( RTC_GND, LOW ); //setup arduino to power RTC from analog pins (NEED TO MOVE POEW OFF OF THIS PIN)
+   pinMode ( FEEDER_PWR, OUTPUT ); digitalWrite ( FEEDER_PWR, LOW );
+   pinMode ( HEATER_PWR, OUTPUT ); digitalWrite ( HEATER_PWR, LOW );
+   pinMode ( LIGHTS_PWR, OUTPUT ); digitalWrite ( LIGHTS_PWR, LOW ); Lights_On_Flag = false; // Tank Lights Power
+   pinMode ( TEMP_SENSOR_PWR, OUTPUT ); digitalWrite ( TEMP_SENSOR_PWR, HIGH ); //Temp Sensor Power
+	RTC.get ( rtc, true ); Serial.println ( "Start RTC" );
+	tft.begin(); Serial.println ( "Start TFT" );		
+	tft.setRotation ( ROTATION ); Serial.println ( "Set Screen Orientation" );
 
 	if ( checkTemp )
 	{
-		sensors.begin(); Serial.println("Start Sensor Routine");    //start up temperature library
+ 		sensors.begin (); Serial.println ( "Start Sensor Routine" );    //start up temperature library
 		sensors.setResolution ( waterThermometer, TEMERATURE_PRECISION );	// set the resolution to 9 bit
 	}
-	Serial.println("Check Touch Screen Sensitivity");
+	Serial.println ("Check Touch Screen Sensitivity");
 	if (! ctp.begin(40))   // pass in 'sensitivity' coefficient
    {
-   	Serial.println(F(" T6206 ERROR"));
+   	Serial.println(F( "T6206 ERROR" ));
    	while (1);
   	
-  }
+	}
   	ReadFromEEPROM (); Serial.println("Get data from EEPROM");
    dispScreen = 1;
 	mainScreen( true );
