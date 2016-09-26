@@ -40,7 +40,7 @@
 #define MAINTENANCE 15
 
 //Misc defines
-#define TEMERATURE_PRECISION 12
+#define TEMERATURE_PRECISION 12 // set the resolution to 12 bit
 #define NUM_LIGHTS 2
 
 //Declare which fonts to be utilized
@@ -89,7 +89,10 @@ int setReturnTimer = setScreenSaverTimer * .75; //Will return to main screen aft
 int dispScreen = 0;  //0-Main Screen, 1-Menu, 2-Clock Setup, 3-Temp Control,
 							//12-General Settings, 13-Automatic Feeder,
 							// 14-Set Feeder Timers, 15-About
-int filterOffMinutes = 5; //start water filter off display minutes
+//TODO Enter code to allow for easy timer change for water filter off fuction
+int filterOffTimerMinutes = 0;
+int filterOffTimerSeconds = 0;	
+int filterOffMinutes = 3; //start water filter off display minutes
 int filterOffSeconds = 0; //start water filter off display seconds
 
 //RTC data
@@ -900,7 +903,6 @@ void printButton ( char* text, int x1, int y1, int x2, int y2, boolean fontsize 
 {
 	int stl = strlen ( text );
 	int fx, fy;
-
 	tft.fillRoundRect ( x1, y1, x2, y2, y2 / 8, ILI9341_BLUE );
 	tft.drawRoundRect ( x1, y1, x2, y2, y2 / 8, ILI9341_WHITE );
 	tft.setTextColor(ILI9341_WHITE);
@@ -920,6 +922,30 @@ void printButton ( char* text, int x1, int y1, int x2, int y2, boolean fontsize 
 		printTxt ( text , fx, fy );
 	}
 }
+void printButtonR ( char* text, int x1, int y1, int x2, int y2, boolean fontsize = false, int buttonColor = 0 ) 
+{
+	int stl = strlen ( text );
+	int fx, fy;
+	tft.fillRoundRect ( x1, y1, x2, y2, y2 / 8, ILI9341_RED );
+	tft.drawRoundRect ( x1, y1, x2, y2, y2 / 8, ILI9341_WHITE );
+	tft.setTextColor(ILI9341_WHITE);
+
+	if ( fontsize ) 
+	{
+		tft.setTextSize ( SMALL );
+		fx = x1 + ( ( x2 / 2 ) - ( ( stl * 6 ) / 2) );
+		fy = y1 + ( ( y2 / 2 ) - 3 );
+		printTxt ( text , fx, fy );
+	}
+	else 
+	{
+		tft.setTextSize ( SMALL );
+		fx = x1 + ( ( x2 / 2 ) - ( ( stl * 6 ) / 2) );
+		fy = y1 + ( ( y2 / 2 ) - 3 );
+		printTxt ( text , fx, fy );
+	}
+}
+
 void printctr ( char* ctrtxt, int fy )
 {
 	int stl = strlen ( ctrtxt );
@@ -1065,7 +1091,7 @@ void TimeSaver ( boolean refreshAll = false )
 
 void screenSaver ()  //Make the Screen Go Blank after so long
 {
-	if ( ( setScreensaver == 1 ) && ( tempAlarmflag == false ) ) 
+	if ( ( setScreensaver == 1 ) && ( tempAlarmflag == false ) && ( allStopFlag == false ) && ( waterfilterStopped == false ) ) 
 	{
 		if (ctp.touched () ) 
 		{ 
@@ -1244,7 +1270,7 @@ int calculateDayOfYear(int daym, int monthm, int yearm)
 void waterFilterTimer ()
 {
 	 unsigned long currentFeedingMillis = millis ();
-	if ( ( filterOffMinutes > 0 ) && ( filterOffSeconds >= 0) || ( filterOffMinutes == 0 ) && ( filterOffSeconds > 0 ))
+	if ( ( filterOffTimerMinutes > filterOffMinutes ) && ( filterOffTimerSeconds >= filterOffSeconds) || ( filterOffTimerMinutes == 0 ) && ( filterOffTimerSeconds > 0 ))
 	{
  		if ( currentFeedingMillis - previousFeedingMillis >= 1000 ) 
 		{ 
@@ -1255,20 +1281,26 @@ void waterFilterTimer ()
 					if ( screenSaverRunning == false ) 
 					{
 						tft.fillRect ( 216, 80, 16, 22, ILI9341_BLACK ); setFont ( LARGE, ILI9341_YELLOW );
-						printVar ( filterOffMinutes, 216, 80 ); printTxt (":", 230, 80 ); 
+						printVar ( filterOffTimerMinutes, 216, 80 ); printTxt (":", 230, 80 ); 
 						tft.fillRect ( 242, 80, 34, 22, ILI9341_BLACK ); setFont ( LARGE, ILI9341_YELLOW );
-						if (filterOffSeconds < 10) 
+						if (filterOffTimerSeconds < 10) 
 						{ 
 							setFont ( LARGE, ILI9341_YELLOW ); 
-							printTxt ("0", 242, 80 ); printVar (filterOffSeconds, 260, 80 ); 
+							printTxt ("0", 242, 80 ); printVar (filterOffTimerSeconds, 260, 80 ); 
 						}
 						else 
 						{ 
-							printVar (filterOffSeconds, 242, 80 ); 
+							printVar (filterOffTimerSeconds, 242, 80 ); 
 						}
 					}
 					if ( screenSaverRunning == true )
 					{
+//TODO -DONE, inserted code to clear screensaver, return to main screen & display countdown timer
+						returnTimer = 0; 
+						ReadFromEEPROM (); 
+						dispScreen = 0; 
+						clearScreen (); 
+						mainScreen ( true ); 
 						tft.fillRect ( 216, 80, 16, 22, ILI9341_BLACK ); tft.fillRect ( 230, 80, 58, 22, ILI9341_BLACK );
 					}
 				}					 
@@ -1280,15 +1312,15 @@ void waterFilterTimer ()
 }		
 void stepDown() 
 {
-	if (filterOffSeconds > 0) 
+	if (filterOffTimerSeconds > 0) 
 	{ 
-		filterOffSeconds -= 1; 
+		filterOffTimerSeconds -= 1; 
 	}
  	else 
  	{ 
- 		if (filterOffMinutes > 0) 
+ 		if (filterOffTimerMinutes > 0) 
  		{ 
- 			filterOffSeconds = 59; filterOffMinutes -= 1; 
+ 			filterOffTimerSeconds = 59; filterOffTimerMinutes -= 1; 
  		} 
  		else 
  		{
@@ -1310,13 +1342,9 @@ void fiveSecDelayToUpdateScreen ()
 			TimeDateBar (); //Serial.println("Print TimeDateBar");
 		}
 		checkTempC(); //Serial.println("Check Water Temp");
-		serialOutput (); Serial.print ( "5sec Water Temp = "); Serial.println (  tempW );
 		lights();
 		screenReturn ();
-		screenSaver ();
-		// cyclecount ();
-	
-		// printOutput();
+		screenSaver ();	
 		if ( ( dispScreen == 0 ) && ( screenSaverTimer < setScreenSaverTimer ) ) 
 		{
 			mainScreen (); //Serial.println("Run mainScreen routine");
@@ -1913,9 +1941,9 @@ void feedingTimeOutput ()
 			Serial.println ( " Now Feeding ");
 			if ( setAutoStop == 1 )
 			{  
-				filterOffMinutes = 5; filterOffSeconds = 0;
+				filterOffTimerMinutes = filterOffMinutes; filterOffTimerSeconds = filterOffSeconds;
 				WaterFilerCtrl_Now = true; waterfilterStopped = true;
-				// screenSaverTimer = 0; mainScreen ( true ); dispScreen = 0;
+				screenSaverTimer = 0; mainScreen ( true ); dispScreen = 0;
 				digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
 			}
 			tenSecTimer = 0; 	feederMotorRunning = true;	
@@ -1923,7 +1951,7 @@ void feedingTimeOutput ()
 		}
 		if ( WaterFilerCtrl_Now == true )
 		{
-			if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) ) 
+			if ( ( filterOffTimerMinutes == 0 ) && ( filterOffTimerSeconds == 0 ) ) 
 			{	
 				FEEDTimeNow = 0; waterfilterStopped = false; 
 				digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
@@ -1933,9 +1961,9 @@ void feedingTimeOutput ()
 		{	
 			if ( setAutoStop == 1 )
 			{  
-				filterOffMinutes = 5; filterOffSeconds = 0;
+				filterOffTimerMinutes = filterOffMinutes; filterOffTimerSeconds = filterOffSeconds;
 				WaterFilerCtrl_1 = true; waterfilterStopped = true;
-				// screenSaverTimer = 0; mainScreen ( true ); dispScreen = 0;
+				screenSaverRunning = false; // Turn Screen Saver off
 				digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
 			}
 			tenSecTimer = 0; 	feederMotorRunning = true;	
@@ -1943,18 +1971,21 @@ void feedingTimeOutput ()
 		}
 		if ( WaterFilerCtrl_1 == true )
 		{
-			if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) ) 
+			if ( ( filterOffTimerMinutes == 0 ) && ( filterOffTimerSeconds == 0 ) ) 
 			{	
 				waterfilterStopped = false; 
 				digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+				screenSaverTimer = 0; // Reset Screensaver Timer
+
 			}
 		}
 		if ( ( FEEDTime2 == 1 ) && ( feedFish2H == rtc [2] ) && ( feedFish2M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
 		{
 			if ( setAutoStop == 1 )
 			{  
-				filterOffMinutes = 5; filterOffSeconds = 0;
+				filterOffTimerMinutes = filterOffMinutes; filterOffTimerSeconds = filterOffSeconds;
 				WaterFilerCtrl_2 = true; waterfilterStopped = true; 
+				screenSaverRunning = false; // Turn Screen Saver off
 				digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
 			}
 			tenSecTimer = 0; 	feederMotorRunning = true;	
@@ -1962,26 +1993,29 @@ void feedingTimeOutput ()
 		}
 		if ( WaterFilerCtrl_2 == true )
 		{
-			if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) )
+			if ( ( filterOffTimerMinutes == 0 ) && ( filterOffTimerSeconds == 0 ) )
 			{	
 				waterfilterStopped = false; 
 				digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
+				screenSaverTimer = 0; // Reset Screensaver Timer
 			}
 		}
 		if ( ( FEEDTime3 == 1 ) && ( feedFish3H == rtc [2] ) && ( feedFish3M == rtc [1] ) && ( rtc [0] <= 4 ) ) 
 		{
 			if ( setAutoStop == 1 )
 			{  
-				filterOffMinutes = 5; filterOffSeconds = 0;
+				filterOffTimerMinutes = filterOffMinutes; filterOffTimerSeconds = filterOffSeconds;
 				WaterFilerCtrl_3 = true; waterfilterStopped = true; 
+				screenSaverRunning = false; // Turn Screen Saver off
 				digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
 			}
 			tenSecTimer = 0; 	feederMotorRunning = true;	
 			digitalWrite ( FEEDER_PWR, HIGH ); // Turn on feeder
+			screenSaverTimer = 0; // Reset Screensaver Timer
 		}
 		if ( WaterFilerCtrl_3 == true )
 		{
-			if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) ) 
+			if ( ( filterOffTimerMinutes == 0 ) && ( filterOffTimerSeconds == 0 ) ) 
 			{	
 				waterfilterStopped = false; 
 				digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
@@ -1991,16 +2025,18 @@ void feedingTimeOutput ()
 		{
 			if ( setAutoStop == 1 )
 			{  
-				filterOffMinutes = 5; filterOffSeconds = 0;
+				filterOffTimerMinutes = filterOffMinutes; filterOffTimerSeconds = filterOffSeconds;
 				WaterFilerCtrl_4 = true; waterfilterStopped = true; 
+				screenSaverRunning = false; // Turn Screen Saver off
 				digitalWrite(WATER_FILTER_PWR,LOW); // Turn off water filter
 			}
 			tenSecTimer = 0; 	feederMotorRunning = true;	
 			digitalWrite ( FEEDER_PWR, HIGH ); // Turn on feeder
+			screenSaverTimer = 0; // Reset Screensaver Timer
 		}
 		if ( WaterFilerCtrl_4 == true )
 		{
-			if ( ( filterOffMinutes == 0 ) && ( filterOffSeconds == 0 ) )
+			if ( ( filterOffTimerMinutes == 0 ) && ( filterOffTimerSeconds == 0 ) )
 			{	
 				waterfilterStopped = false; 
 				digitalWrite(WATER_FILTER_PWR,HIGH); // Turn oN water filter
@@ -2043,7 +2079,14 @@ void waterChangeControl ()
 	setFont ( SMALL, ILI9341_WHITE );
 	printctr ( "This function turns off", 30 );
 	printctr ( "the water filter & heater", 50 );
+	if ( ( allStopFlag == true) && ( dispScreen == 16 ) )
+	{
+	printButtonR ( "OFF", watOff [0], watOff [1], watOff [2], watOff [3], SMALL ); // Start - turns water filter & heater off
+	}
+	else
+	{
 	printButton ( "OFF", watOff [0], watOff [1], watOff [2], watOff [3], SMALL ); // Start - turns water filter & heater off
+	}
 	printButton ( "FINISHED", watOn [0], watOn [1], watOn [2], watOn [3], SMALL ); // Finished - turns water filter & heater on
 }
 /************** MAINTENANCE REMINDER SCREEN ****************** dispScreen = 17 ***********************/
@@ -2052,10 +2095,49 @@ void maintSettingScreen ()
 	menuTemplate ();
 	setFont ( SMALL, ILI9341_WHITE );
 	tft.setCursor ( 25, 25 ); tft.print (F( " Item                  Days           Alarm" ) );
+	if ( alarm1 == false )
+	{
+	setFont ( SMALL, ILI9341_WHITE );
 	tft.setCursor ( 20, ( day1D [1] + 8 ) ); tft.print ( maintName [0] );
-	tft.setCursor ( 20, ( day2D [1] + 8 ) ); tft.print ( maintName [1] );
-	tft.setCursor ( 20, ( day3D [1] + 8 ) ); tft.print ( maintName [2] );
-	tft.setCursor ( 20, ( day4D [1] + 8 ) ); tft.print ( maintName [3] );;
+	}
+	else
+	{
+		setFont ( SMALL, ILI9341_RED );
+		tft.setCursor ( 20, ( day1D [1] + 8 ) ); tft.print ( maintName [0] );
+	}
+	if ( alarm2 == false )
+	{
+		setFont ( SMALL, ILI9341_WHITE );
+		tft.setCursor ( 20, ( day2D [1] + 8 ) ); tft.print ( maintName [1] );
+	}
+	else
+	{
+		setFont ( SMALL, ILI9341_RED );
+		tft.setCursor ( 20, ( day2D [1] + 8 ) ); tft.print ( maintName [1] );
+	}
+	if ( alarm3 == false )
+	{
+		setFont ( SMALL, ILI9341_WHITE );
+		tft.setCursor ( 20, ( day3D [1] + 8 ) ); tft.print ( maintName [2] );
+	}
+	else
+	{
+		setFont ( SMALL, ILI9341_RED );
+		tft.setCursor ( 20, ( day3D [1] + 8 ) ); tft.print ( maintName [2] );
+	}
+	if ( alarm4 == false )
+	{
+		setFont ( SMALL, ILI9341_WHITE );
+		tft.setCursor ( 20, ( day4D [1] + 8 ) ); tft.print ( maintName [3] );
+	}
+	else
+	{
+		setFont ( SMALL, ILI9341_RED );
+		tft.setCursor ( 20, ( day4D [1] + 8 ) ); tft.print ( maintName [3] );
+	}
+	//tft.setCursor ( 20, ( day2D [1] + 8 ) ); tft.print ( maintName [1] );
+	//tft.setCursor ( 20, ( day3D [1] + 8 ) ); tft.print ( maintName [2] );
+	//tft.setCursor ( 20, ( day4D [1] + 8 ) ); tft.print ( maintName [3] );
 	printButton ( "-", day1D [0], day1D [1], day1D [2], day1D [3], true );     
 	printButton ( "+", day1U [0], day1U [1], day1U [2], day1U [3], true );     
 	printButton ( "-", day2D [0], day2D [1], day2D [2], day2D [3], true );     
@@ -2086,7 +2168,7 @@ void processMyTouch ()
 
 	
 	if ( ( x >= canC [0] ) && ( x <= ( canC [0] + canC [2] ) ) && ( y >= canC [1] ) && ( y <= (canC [1] + canC [3] ) )   //press cancel
-			&& ( dispScreen != 0 ) && ( dispScreen != 5 ) && ( dispScreen != 6 ) && ( dispScreen != 8 ) && ( dispScreen != 11 ) ) 
+			&& ( dispScreen != 0 ) ) 
 	{
 		waitForIt ( canC [0], canC [1], canC [2], canC [3] );
 		ReadFromEEPROM (); dispScreen = 0; clearScreen (); mainScreen ( true );
@@ -2861,7 +2943,7 @@ void processMyTouch ()
 				{
 					if ( ( y >= mainR [1] ) && ( y <= ( mainR [1] + mainR [3] ) ) )
 					{
-						waitForIt ( mainR [0], mainR [1], mainR [2], mainR [3] );					dispScreen = 17;
+						waitForIt ( mainR [0], mainR [1], mainR [2], mainR [3] );
 						dispScreen = 17;
 						clearScreen ();
 						maintSettingScreen ();
@@ -2874,10 +2956,12 @@ void processMyTouch ()
 					if ( ( y >= watOff [1] ) && ( y <= ( watOff [1] + watOff [3] ) ) )
 					{
 						waitForIt ( watOff [0], watOff [1], watOff [2], watOff [3] );
-						// change color of selected button - Flashing while off???
+						dispScreen = 16;
 						allStopFlag = true;
+						SCREEN_RETURN = false;
 						digitalWrite ( WATER_FILTER_PWR, LOW );
 						digitalWrite ( HEATER_PWR, LOW );
+						waterChangeControl ();
 					}
 				}
 				if ( ( x >= watOn [0] ) && ( x <= ( watOn [0] + watOn [2] ) ) )
@@ -2885,9 +2969,10 @@ void processMyTouch ()
 					if ( ( y >= watOn [1] ) && ( y <= ( watOn [1] + watOn [3] ) ) )
 					{
 						waitForIt ( watOn [0], watOn [1], watOn [2], watOn [3] );
-						// change color of selected button - Flashing while off???
-						digitalWrite ( WATER_FILTER_PWR, HIGH );
+ 						digitalWrite ( WATER_FILTER_PWR, HIGH );
 						allStopFlag = false;
+						SCREEN_RETURN = true;
+						waterChangeControl ();
 					}
 				}
 				break;
@@ -3008,7 +3093,8 @@ void processMyTouch ()
 				break;	
 				
 		}
-	}	
+	}
+	delay ( 100 );	
 }
 
 /******************************* End of Touch Screen *********************************/
@@ -3032,7 +3118,7 @@ void setup()
 	if ( checkTemp )
 	{
  		sensors.begin (); Serial.println ( "Start Sensor Routine" );    //start up temperature library
-		sensors.setResolution ( waterThermometer, TEMERATURE_PRECISION );	// set the resolution to 9 bit
+		sensors.setResolution ( waterThermometer, TEMERATURE_PRECISION );	// set the resolution
 	}
 	Serial.println ("Check Touch Screen Sensitivity");
 	if (! ctp.begin(40))   // pass in 'sensitivity' coefficient
@@ -3104,13 +3190,3 @@ void printDigits(int digits)
   Serial.print(digits);
 }
 
-void cyclecount ()
-{
-	// countcycle++;
-	serialOutput (); Serial.print ( "waterfilterStopped = "); Serial.println (  waterfilterStopped );
-	serialOutput (); Serial.print ( "Display = "); Serial.print (dispScreen); Serial.print ( " screenSaverRunning = "); Serial.println (screenSaverRunning);
-	serialOutput (); Serial.print ( filterOffMinutes ); Serial.print (":"); Serial.println ( filterOffSeconds);
-	serialOutput (); Serial.print ( "screenSaverTimer = "); Serial.println (screenSaverTimer);
-	// serialOutput (); Serial.print ( "setScreenSaverTimer = "); Serial.println (setScreenSaverTimer);
-	// Serial.print ( "")
-}
